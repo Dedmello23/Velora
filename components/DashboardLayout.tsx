@@ -156,7 +156,7 @@ export default function DashboardLayout({
           }`}
         >
           <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
-            <BrandLogo />
+            <BrandLogo collapsed={collapsed} />
           </Link>
 
           <button
