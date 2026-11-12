@@ -66,6 +66,7 @@ export default function DashboardLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   const compact = collapsed && !hovered && !mobileOpen;
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -103,6 +104,18 @@ export default function DashboardLayout({
 
     setThemeOpen(!themeOpen);
   };
+
+  // Small intent delays so a mouse passing by doesn't flicker the sidebar
+  const setHoverDelayed = (value: boolean) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHovered(value), value ? 90 : 160);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -168,16 +181,16 @@ export default function DashboardLayout({
       {/* Spacer reserves layout width so hover-expansion overlays content */}
       <div
         aria-hidden
-        className={`hidden md:block shrink-0 transition-all duration-200 ${
+        className={`hidden md:block shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           collapsed ? "w-16" : "w-72"
         }`}
       />
       <aside
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-200 ${
+        onMouseEnter={() => setHoverDelayed(true)}
+        onMouseLeave={() => setHoverDelayed(false)}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r transition-[width,transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           compact ? "md:w-16" : "md:w-72"
-        } w-72 ${
+        } ${collapsed && !compact && !mobileOpen ? "md:shadow-2xl" : ""} w-72 ${
           theme === "tung"
             ? "border-amber-900/40 bg-zinc-950/90 backdrop-blur-md text-amber-100"
             : theme === "og"
@@ -189,9 +202,7 @@ export default function DashboardLayout({
       >
         {/* Clean Logo Header Space */}
         <div
-          className={`flex h-16 items-center px-4 border-b transition-all ${
-            compact ? "justify-center" : "justify-between"
-          } ${
+          className={`flex h-16 shrink-0 items-center gap-2 px-4 border-b ${
             theme === "tung"
               ? "border-amber-900/40 bg-zinc-950/60"
               : theme === "og"
@@ -201,8 +212,21 @@ export default function DashboardLayout({
               : "border-zinc-100"
           }`}
         >
-          <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
-            <BrandLogo collapsed={compact} />
+          <Link href="/" className="relative h-10 min-w-0 flex-1 overflow-hidden">
+            <div
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${
+                compact ? "opacity-100 delay-100" : "opacity-0"
+              }`}
+            >
+              <BrandLogo collapsed />
+            </div>
+            <div
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${
+                compact ? "opacity-0" : "opacity-100 delay-100"
+              }`}
+            >
+              <BrandLogo collapsed={false} />
+            </div>
           </Link>
 
           <button
@@ -215,11 +239,13 @@ export default function DashboardLayout({
 
         {/* Navigation Links (Clean: Badges removed) */}
         <div className="flex-1 overflow-y-auto px-2.5 py-4">
-          {!compact && (
-            <div className="mb-2 px-3 text-[10px] font-semibold tracking-wider opacity-40 uppercase">
-              Menu
-            </div>
-          )}
+          <div
+            className={`mb-2 h-4 whitespace-nowrap px-3.5 text-[10px] font-semibold tracking-wider uppercase transition-opacity duration-200 ${
+              compact ? "opacity-0" : "opacity-40 delay-100"
+            }`}
+          >
+            Menu
+          </div>
           <nav className="space-y-1">
             {NAV_ITEMS.map((item) => {
               const active = pathname === item.href;
@@ -229,10 +255,7 @@ export default function DashboardLayout({
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  title={compact ? item.label : undefined}
-                  className={`group flex items-center rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                    compact ? "justify-center p-2.5" : "px-3 py-2.5"
-                  } ${
+                  className={`group flex items-center rounded-xl text-xs sm:text-sm font-medium transition-colors px-3.5 py-2.5 ${
                     active
                       ? theme === "gradient"
                         ? "bg-indigo-600 text-white shadow-xs"
@@ -242,7 +265,7 @@ export default function DashboardLayout({
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 whitespace-nowrap">
                     <Icon
                       className={`h-4 w-4 shrink-0 transition-colors ${
                         active
@@ -252,7 +275,13 @@ export default function DashboardLayout({
                           : "opacity-60 group-hover:opacity-100"
                       }`}
                     />
-                    {!compact && <span>{item.label}</span>}
+                    <span
+                      className={`transition-opacity duration-200 ${
+                        compact ? "opacity-0" : "opacity-100 delay-100"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
                   </div>
                 </Link>
               );
