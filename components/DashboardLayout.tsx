@@ -21,6 +21,7 @@ import {
   User,
   Settings,
   Check,
+  Layers,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -124,6 +125,8 @@ export default function DashboardLayout({
           ? "bg-zinc-950 text-zinc-100 dark"
           : theme === "gradient"
           ? "bg-gradient-to-br from-slate-950 via-indigo-950/80 to-zinc-950 text-zinc-100 dark"
+          : theme === "og"
+          ? "bg-transparent text-zinc-100 dark"
           : "bg-zinc-50/70 text-zinc-900"
       }`}
     >
@@ -140,7 +143,9 @@ export default function DashboardLayout({
         className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-200 md:static ${
           collapsed ? "md:w-16" : "md:w-72"
         } w-72 ${
-          theme === "dark" || theme === "gradient"
+          theme === "og"
+            ? "border-zinc-800/60 bg-zinc-950/85 backdrop-blur-md text-zinc-100"
+            : theme === "dark" || theme === "gradient"
             ? "border-zinc-800/80 bg-zinc-900/95 backdrop-blur-md text-zinc-100"
             : "border-zinc-200 bg-white text-zinc-900"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
@@ -150,7 +155,9 @@ export default function DashboardLayout({
           className={`flex h-16 items-center px-4 border-b transition-all ${
             collapsed ? "justify-center" : "justify-between"
           } ${
-            theme === "dark" || theme === "gradient"
+            theme === "og"
+              ? "border-zinc-800/60 bg-zinc-950/50"
+              : theme === "dark" || theme === "gradient"
               ? "border-zinc-800/80"
               : "border-zinc-100"
           }`}
@@ -191,7 +198,7 @@ export default function DashboardLayout({
                       ? theme === "gradient"
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs"
-                      : theme === "dark" || theme === "gradient"
+                      : theme === "dark" || theme === "gradient" || theme === "og"
                       ? "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   }`}
@@ -220,7 +227,9 @@ export default function DashboardLayout({
         {/* Top Header Bar */}
         <header
           className={`sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b px-3 sm:px-6 backdrop-blur-md transition-colors ${
-            theme === "dark"
+            theme === "og"
+              ? "border-zinc-800/60 bg-zinc-950/75 text-zinc-100"
+              : theme === "dark"
               ? "border-zinc-800/80 bg-zinc-900/80 text-zinc-100"
               : theme === "gradient"
               ? "border-indigo-900/40 bg-zinc-950/70 text-zinc-100"
@@ -263,7 +272,7 @@ export default function DashboardLayout({
               {notificationsOpen && (
                 <div
                   className={`absolute right-0 mt-2 w-64 sm:w-72 rounded-2xl border p-3 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient"
+                    theme === "dark" || theme === "gradient" || theme === "og"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -305,12 +314,13 @@ export default function DashboardLayout({
                 {theme === "light" && <Sun className="h-4 w-4 text-amber-500" />}
                 {theme === "dark" && <Moon className="h-4 w-4 text-indigo-400" />}
                 {theme === "gradient" && <Palette className="h-4 w-4 text-fuchsia-400" />}
+                {theme === "og" && <Layers className="h-4 w-4 text-emerald-400" />}
               </button>
 
               {themeOpen && (
                 <div
-                  className={`absolute right-0 mt-2 w-44 rounded-2xl border p-1.5 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient"
+                  className={`absolute right-0 mt-2 w-48 rounded-2xl border p-1.5 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
+                    theme === "dark" || theme === "gradient" || theme === "og"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -323,6 +333,7 @@ export default function DashboardLayout({
                       { id: "light", label: "Light", icon: Sun, color: "text-amber-500" },
                       { id: "dark", label: "Dark", icon: Moon, color: "text-indigo-400" },
                       { id: "gradient", label: "Gradient", icon: Palette, color: "text-fuchsia-400" },
+                      { id: "og", label: "OG Papercut", icon: Layers, color: "text-emerald-400" },
                     ] as const
                   ).map((t) => {
                     const Icon = t.icon;
@@ -365,7 +376,7 @@ export default function DashboardLayout({
               {profileOpen && (
                 <div
                   className={`absolute right-0 mt-2 w-60 sm:w-64 rounded-2xl border p-2 shadow-xl z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient"
+                    theme === "dark" || theme === "gradient" || theme === "og"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -434,7 +445,7 @@ export default function DashboardLayout({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-xs">
           <div
             className={`w-full max-w-sm sm:max-w-md rounded-2xl border p-5 sm:p-6 shadow-2xl animate-in fade-in-50 zoom-in-95 ${
-              theme === "dark" || theme === "gradient"
+              theme === "dark" || theme === "gradient" || theme === "og"
                 ? "border-zinc-800 bg-zinc-900 text-zinc-100"
                 : "border-zinc-200 bg-white text-zinc-900"
             }`}

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "light" | "dark" | "gradient";
+export type Theme = "light" | "dark" | "gradient" | "og";
 
 interface ThemeContextType {
   theme: Theme;
@@ -33,11 +33,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const applyThemeClass = (t: Theme) => {
     const root = document.documentElement;
-    root.classList.remove("light", "dark", "theme-gradient");
+    root.classList.remove("light", "dark", "theme-gradient", "theme-og");
     if (t === "dark") {
       root.classList.add("dark");
     } else if (t === "gradient") {
       root.classList.add("dark", "theme-gradient");
+    } else if (t === "og") {
+      root.classList.add("dark", "theme-og");
     } else {
       root.classList.add("light");
     }
