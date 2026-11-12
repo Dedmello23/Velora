@@ -8,8 +8,8 @@ import { toToolDefinitions } from "./defineTool";
 import { buildSystemPrompt } from "./systemPrompt";
 import type { AgentEvent, AgentResult, AgentStep } from "./types";
 
-/** Stops the agent from looping forever and using up your Groq quota. A return needs about 4 tool calls. */
-const MAX_ROUNDS = 8;
+/** Stops the agent from looping forever and using up your Groq quota. Normal requests need 2 or 3 model calls. */
+const MAX_ROUNDS = 6;
 
 /** Groq sometimes returns a malformed tool call (HTTP 400, tool_use_failed). Asking again almost always works. */
 const MODEL_RETRIES = 2;
@@ -28,6 +28,7 @@ export async function runAgent(
   onEvent: (event: AgentEvent) => void = () => {}
 ): Promise<AgentResult> {
   const steps: AgentStep[] = [];
+  const reads = new Map<string, AgentStep>(); // successful read-only tool results for this request
   const toolDefinitions = toToolDefinitions(tools);
 
   // The browser sends role "model"; Groq calls the same thing "assistant".
@@ -51,16 +52,37 @@ export async function runAgent(
     // Rebuilt by hand so no extra response fields are sent back to the API.
     history.push({ role: "assistant", content: message?.content ?? "", tool_calls: calls });
 
-    for (const call of calls) {
+    // Read-only tools run at the same time. Write tools run one by one afterwards, in the order the model asked.
+    const done = new Map<string, AgentStep>();
+    const exec = async (call: (typeof calls)[number]) => {
+      const key = `${call.function.name}:${(call.function.arguments ?? "").trim()}`;
       const tool = tools.find((t) => t.name === call.function.name);
+      // The same read asked twice in one request is answered from memory, not run again.
+      const cached = !tool?.writes ? reads.get(key) : undefined;
+      if (cached) {
+        done.set(call.id, cached);
+        return;
+      }
       onEvent({ type: "tool_start", id: call.id, tool: call.function.name, writes: tool?.writes ?? false });
       const step = await runTool(call.function.name, call.function.arguments);
       onEvent({ type: "tool_end", id: call.id, tool: step.tool, ok: step.ok, error: step.ok ? undefined : step.error });
-      steps.push(step);
+      done.set(call.id, step);
+      if (step.ok && !step.writes) reads.set(key, step);
+    };
+    const isWrite = (call: (typeof calls)[number]) => tools.find((t) => t.name === call.function.name)?.writes ?? false;
+    await Promise.all(calls.filter((c) => !isWrite(c)).map(exec));
+    for (const call of calls.filter(isWrite)) {
+      await exec(call);
+      reads.clear(); // data changed: earlier answers may be stale
+    }
+
+    for (const call of calls) {
+      const step = done.get(call.id)!;
+      if (!steps.includes(step)) steps.push(step);
       history.push({
         role: "tool",
         tool_call_id: call.id,
-        content: JSON.stringify(step.ok ? { result: step.result } : { error: step.error }),
+        content: compact(step.ok ? { result: step.result } : { error: step.error }),
       });
     }
   }
@@ -84,7 +106,10 @@ async function askModel(
         tools: toolDefinitions,
         tool_choice: "auto",
         temperature: 0.2,
-        max_completion_tokens: 2048,
+        max_completion_tokens: 1024,
+        parallel_tool_calls: true,
+        // gpt-oss models "think" before answering. Low effort is plenty for lookups and is much faster and cheaper.
+        ...(GROQ_MODEL.includes("gpt-oss") ? { reasoning_effort: "low" as const } : {}),
       });
     } catch (err) {
       if (attempt < MODEL_RETRIES && isBadToolCall(err)) {
@@ -99,6 +124,11 @@ async function askModel(
 function isBadToolCall(err: unknown): boolean {
   if (!(err instanceof Groq.APIError) || err.status !== 400) return false;
   return /tool_use_failed|failed to call a function/i.test(`${err.message} ${JSON.stringify(err.error ?? "")}`);
+}
+
+/** JSON for the model without null or empty fields, so every call sends fewer tokens. */
+function compact(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => (v === null || v === undefined || v === "" ? undefined : v));
 }
 
 /** Groq sends the tool arguments as a JSON string. */
