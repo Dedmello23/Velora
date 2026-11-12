@@ -76,7 +76,22 @@ function toItemView(i: RawItem): OrderItemView {
 /** One embedded select: the items of an order with each product's name and return window. */
 export const ITEMS_EMBED = "order_items(product_id, quantity, unit_price, products(name, return_window_days))";
 
-export type OrderWithItems = OrderRow & { items: OrderItemView[] };
+export type ReturnSummary = { id: number; product_id: string; reason: string; status: string; created_at: string };
+export type OrderWithItems = OrderRow & { items: OrderItemView[]; returns?: ReturnSummary[] };
+
+/** Also embed the returns raised on each order (still ONE query). */
+const RETURNS_EMBED = "returns(id, product_id, reason, status, created_at)";
+
+/** Days an undelivered order is past its expected date. 0 if it is on time, delivered or cancelled. */
+export function daysLate(
+  order: { status: string; expected_delivery: string | null },
+  today: string = todayInIndia()
+): number {
+  const open = order.status !== "delivered" && order.status !== "cancelled";
+  return open && order.expected_delivery && order.expected_delivery < today
+    ? daysBetween(order.expected_delivery, today)
+    : 0;
+}
 
 function withItems(row: unknown): OrderWithItems {
   const { order_items, ...order } = row as OrderRow & { order_items?: RawItem[] };
@@ -100,10 +115,12 @@ export async function getItemsByOrder(orderIds: number[]): Promise<Record<number
 }
 
 /** The customer's orders with their items in ONE query. Newest first. */
-export async function getOrdersWithItems(opts: { status?: string; limit?: number } = {}): Promise<OrderWithItems[]> {
+export async function getOrdersWithItems(
+  opts: { status?: string; limit?: number; returns?: boolean } = {}
+): Promise<OrderWithItems[]> {
   let query = getSupabase()
     .from("orders")
-    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}`)
+    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}${opts.returns ? `, ${RETURNS_EMBED}` : ""}`)
     .eq("customer_id", CURRENT_USER_ID)
     .order("order_date", { ascending: false })
     .order("id", { ascending: false })
@@ -115,10 +132,13 @@ export async function getOrdersWithItems(opts: { status?: string; limit?: number
 }
 
 /** One of the customer's orders with its items in ONE query. Throws if it is not theirs. */
-export async function getOwnOrderWithItems(orderId: number): Promise<OrderWithItems> {
+export async function getOwnOrderWithItems(
+  orderId: number,
+  opts: { returns?: boolean } = {}
+): Promise<OrderWithItems> {
   const { data, error } = await getSupabase()
     .from("orders")
-    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}`)
+    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}${opts.returns ? `, ${RETURNS_EMBED}` : ""}`)
     .eq("id", orderId)
     .eq("customer_id", CURRENT_USER_ID)
     .maybeSingle();

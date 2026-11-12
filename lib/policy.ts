@@ -14,13 +14,23 @@ type ProductRow = { id: string; name: string; category: string; return_window_da
  * Return policy, read from the products table so it is never made up.
  * With a query (product id, name or category) it lists matching products; without one it summarises by category.
  */
-export async function getReturnPolicy(query?: string) {
+let cache: { at: number; products: ProductRow[] } | null = null;
+const CACHE_MS = 5 * 60_000;
+
+/** The products table almost never changes, so keep it in memory for a few minutes instead of querying every time. */
+async function loadProducts(): Promise<ProductRow[]> {
+  if (cache && Date.now() - cache.at < CACHE_MS) return cache.products;
   const { data, error } = await getSupabase()
     .from("products")
     .select("id, name, category, return_window_days")
     .order("id");
   if (error) throw new Error(error.message);
-  const products = data as ProductRow[];
+  cache = { at: Date.now(), products: data as ProductRow[] };
+  return cache.products;
+}
+
+export async function getReturnPolicy(query?: string) {
+  const products = await loadProducts();
 
   const q = query?.trim().toLowerCase();
   if (q) {

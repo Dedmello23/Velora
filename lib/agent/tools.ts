@@ -5,11 +5,13 @@ import { getSupabase } from "../supabase";
 import { CURRENT_USER_ID } from "../currentUser";
 import { todayInIndia } from "../dates";
 import {
-  ORDER_COLUMNS,
+  addDays,
   checkEligibility,
-  daysBetween,
-  getItemsByOrder,
+  daysLate,
+  getOrdersWithItems,
   getOwnOrder,
+  getOwnOrderWithItems,
+  type OrderWithItems,
 } from "../support";
 import { getReturnPolicy } from "../policy";
 import { findOpenTicketForOrder, listMyTickets } from "../tickets";
@@ -21,56 +23,71 @@ import { findOpenTicketForOrder, listMyTickets } from "../tickets";
 
 const orderId = z.number().int().positive().describe("The order number, for example 1003");
 
+/**
+ * An order shaped for the model. Everything the model usually needs is already here (days_late, and for delivered
+ * orders whether each item can still be returned), so it does not need extra tool calls to work it out.
+ */
+function agentOrder(o: OrderWithItems, today: string) {
+  const { items, returns, ...order } = o;
+  const late = daysLate(o, today);
+  return {
+    ...order,
+    ...(late > 0 ? { days_late: late } : {}),
+    items: items.map((i) => {
+      const base = { product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price };
+      if (o.status !== "delivered" || !o.delivered_date) return base;
+      if (i.return_window_days <= 0) return { ...base, can_return_now: false, return_note: "cannot be returned" };
+      const until = addDays(o.delivered_date, i.return_window_days);
+      return { ...base, return_until: until, can_return_now: today <= until };
+    }),
+    ...(returns ? { returns } : {}),
+  };
+}
+
 const getMyOrders = defineTool({
   name: "getMyOrders",
   description:
-    "Use this when the customer asks about their orders in general, wants to find an order (for example 'my last order' or 'the order with the shoes'), or you do not know an order number. Returns up to 20 orders, newest first, each with its items.",
+    "Use this when the customer asks about their orders in general, wants to find an order (for example 'my last order', 'the order with the shoes') or you do not know an order number. Returns orders newest first, each with items, days_late (if late) and, for delivered orders, can_return_now and return_until per item (not counting returns already raised). Often this alone answers the question.",
   schema: z.object({
     status: z
       .enum(["placed", "shipped", "out_for_delivery", "delivered", "cancelled"])
       .optional()
       .describe("Only return orders with this status. Omit for all orders."),
+    product: z
+      .string()
+      .trim()
+      .min(1)
+      .max(60)
+      .optional()
+      .describe("Only orders that contain a product whose name has this word, for example 'shoes'."),
   }),
-  run: async ({ status }) => {
-    let query = getSupabase()
-      .from("orders")
-      .select(ORDER_COLUMNS)
-      .eq("customer_id", CURRENT_USER_ID)
-      .order("order_date", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(20);
-    if (status) query = query.eq("status", status);
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    const items = await getItemsByOrder(data.map((o) => o.id as number));
-    return {
-      count: data.length,
-      orders: data.map((o) => ({ ...o, items: items[o.id as number] ?? [] })),
-    };
+  run: async ({ status, product }) => {
+    const today = todayInIndia();
+    // One query. When searching by product we look at more orders, then keep the newest few.
+    const orders = await getOrdersWithItems({ status, limit: product ? 50 : 10 });
+    const word = product?.toLowerCase();
+    const found = word ? orders.filter((o) => o.items.some((i) => i.name.toLowerCase().includes(word))) : orders;
+    const shown = found.slice(0, 10);
+    return { today, count: shown.length, orders: shown.map((o) => agentOrder(o, today)) };
   },
 });
 
 const getOrderDetails = defineTool({
   name: "getOrderDetails",
   description:
-    "Use this when the customer asks where an order is, its status, delivery date, courier, tracking number or whether it is late. Returns the order, its items, any returns on it, and days_late for undelivered orders past their expected date.",
-  schema: z.object({ order_id: orderId }),
+    "Use this when the customer asks where one order is, its status, delivery date, courier, tracking number or whether it is late. Omit order_id for their newest order ('my last order'). Returns the order, its items, any returns on it, and days_late.",
+  schema: z.object({
+    order_id: orderId.optional().describe("The order number. Omit for the customer's newest order."),
+  }),
   run: async ({ order_id }) => {
-    const order = await getOwnOrder(order_id);
-    const items = (await getItemsByOrder([order_id]))[order_id] ?? [];
-    const { data: returns, error } = await getSupabase()
-      .from("returns")
-      .select("id, product_id, reason, status, created_at")
-      .eq("order_id", order_id);
-    if (error) throw new Error(error.message);
-
     const today = todayInIndia();
-    const open = order.status !== "delivered" && order.status !== "cancelled";
-    const daysLate =
-      open && order.expected_delivery && order.expected_delivery < today
-        ? daysBetween(order.expected_delivery, today)
-        : 0;
-    return { today, order, items, returns, days_late: daysLate };
+    // One query for the order, its items and its returns.
+    const order =
+      order_id !== undefined
+        ? await getOwnOrderWithItems(order_id, { returns: true })
+        : (await getOrdersWithItems({ limit: 1, returns: true }))[0];
+    if (!order) throw new Error("You have no orders yet.");
+    return { today, order: agentOrder(order, today) };
   },
 });
 
@@ -123,10 +140,11 @@ const escalateToHuman = defineTool({
       .describe("high for orders 3+ days late or damaged items, low for general questions. Default medium."),
   }),
   run: async ({ issue, order_id, priority }) => {
+    let level = priority ?? "medium";
     if (order_id) {
-      await getOwnOrder(order_id);
+      // Both checks run at the same time.
+      const [order, existing] = await Promise.all([getOwnOrder(order_id), findOpenTicketForOrder(order_id)]);
       // Guardrail in code: one unresolved ticket per order. Do not create a duplicate.
-      const existing = await findOpenTicketForOrder(order_id);
       if (existing) {
         return {
           ticket: existing,
@@ -134,6 +152,8 @@ const escalateToHuman = defineTool({
           note: "The customer already has an unresolved ticket for this order. No new ticket was created.",
         };
       }
+      // Rule in code: 3 or more days late is always high priority, whatever the model chose.
+      if (daysLate(order) >= 3) level = "high";
     }
     const { data, error } = await getSupabase()
       .from("support_tickets")
@@ -141,7 +161,7 @@ const escalateToHuman = defineTool({
         customer_id: CURRENT_USER_ID,
         order_id: order_id ?? null,
         issue,
-        priority: priority ?? "medium",
+        priority: level,
       })
       .select("id, order_id, issue, priority, status, created_at")
       .single();
@@ -158,31 +178,22 @@ const getMyReturns = defineTool({
     order_id: orderId.optional().describe("Only returns for this order. Omit for all returns."),
   }),
   run: async ({ order_id }) => {
-    if (order_id) await getOwnOrder(order_id);
-    const db = getSupabase();
-    const { data: orders, error: oErr } = await db.from("orders").select("id").eq("customer_id", CURRENT_USER_ID);
-    if (oErr) throw new Error(oErr.message);
-    const orderIds = order_id ? [order_id] : orders.map((o) => o.id as number);
-    if (orderIds.length === 0) return { count: 0, returns: [] };
-
-    const { data: returns, error } = await db
+    // One query: returns joined with the product name, limited to this customer's orders.
+    let query = getSupabase()
       .from("returns")
-      .select("id, order_id, product_id, reason, status, created_at")
-      .in("order_id", orderIds)
+      .select("id, order_id, product_id, reason, status, created_at, products(name), orders!inner(customer_id)")
+      .eq("orders.customer_id", CURRENT_USER_ID)
       .order("created_at", { ascending: false })
       .limit(20);
+    if (order_id) query = query.eq("order_id", order_id);
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    const productIds = [...new Set(returns.map((r) => r.product_id as string))];
-    const { data: products, error: pErr } = productIds.length
-      ? await db.from("products").select("id, name").in("id", productIds)
-      : { data: [], error: null };
-    if (pErr) throw new Error(pErr.message);
-    const names = new Map((products ?? []).map((p) => [p.id as string, p.name as string]));
-    return {
-      count: returns.length,
-      returns: returns.map((r) => ({ ...r, product_name: names.get(r.product_id as string) ?? r.product_id })),
-    };
+    const returns = (data as unknown as Array<Record<string, unknown>>).map(({ products, orders: _orders, ...r }) => {
+      const p = (Array.isArray(products) ? products[0] : products) as { name?: string } | null;
+      return { ...r, product_name: p?.name ?? r.product_id };
+    });
+    return { count: returns.length, returns };
   },
 });
 
