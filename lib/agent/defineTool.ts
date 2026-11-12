@@ -1,11 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import type { FunctionDeclaration } from "@google/genai";
 
 /**
  * One agent tool = a name + a description + a Zod schema for its arguments + the code it runs.
- * Gemini reads the name, description and schema to decide WHEN to call the tool.
- * Your code runs the tool. Gemini never touches the database directly.
+ * The model (Groq) reads the name, description and schema to decide WHEN to call the tool.
+ * Your code runs the tool. The model never touches the database directly.
  */
 export type AgentTool = {
   name: string;
@@ -32,7 +31,7 @@ export function defineTool<S extends z.ZodObject>(tool: {
   };
 }
 
-// Only these JSON Schema keys are sent to Gemini. Zod still checks everything else.
+// Only these JSON Schema keys are sent to the model. Zod still checks everything else.
 const ALLOWED_KEYS = new Set([
   "type",
   "properties",
@@ -63,11 +62,20 @@ function clean(node: unknown): unknown {
   return out;
 }
 
-/** Turns our tools into the function declarations Gemini expects. */
-export function toFunctionDeclarations(tools: AgentTool[]): FunctionDeclaration[] {
+/** A tool in the OpenAI-style format that Groq's chat API expects. */
+export type ToolDefinition = {
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+
+/** Turns our tools into the tool definitions sent to Groq. */
+export function toToolDefinitions(tools: AgentTool[]): ToolDefinition[] {
   return tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    parametersJsonSchema: clean(z.toJSONSchema(tool.schema, { io: "input" })),
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: clean(z.toJSONSchema(tool.schema, { io: "input" })) as Record<string, unknown>,
+    },
   }));
 }

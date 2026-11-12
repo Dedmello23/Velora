@@ -19,11 +19,11 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Agent failed";
     console.error("[agent]", message);
-    const quota = /429|quota|RESOURCE_EXHAUSTED/i.test(message);
+    const quota = /429|quota|rate.?limit/i.test(message);
     return NextResponse.json(
       {
         error: quota
-          ? "Gemini quota reached. Wait a minute and try again."
+          ? "Groq rate limit reached. Wait a minute and try again."
           : message,
       },
       { status: quota ? 429 : 500 }

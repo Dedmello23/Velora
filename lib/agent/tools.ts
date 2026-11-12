@@ -137,7 +137,7 @@ const escalateToHuman = defineTool({
   },
 });
 
-/** Every tool in this list is given to Gemini. */
+/** Every tool in this list is given to the model. */
 export const tools: AgentTool[] = [
   getMyOrders,
   getOrderDetails,
