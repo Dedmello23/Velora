@@ -9,6 +9,7 @@ const TOOL_STATUS: Record<string, string> = {
   getMyReturns: "Checking your returns",
   getMyTickets: "Checking ticket status",
   getReturnPolicy: "Reading the return policy",
+  findReturnableItems: "Checking what you can still return",
 };
 
 /** One short status line from a real agent event. Returns null to keep the current text. */
