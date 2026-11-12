@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
-  Sparkles,
+  Zap,
   CreditCard,
   XCircle,
   ChevronDown,
@@ -332,7 +332,7 @@ export default function OrdersPage() {
                         </span>
                         <StatusBadge value={o.status} />
                         {isLate && (
-                          <span className="rounded-md bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                          <span className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-2xs">
                             LATE
                           </span>
                         )}
@@ -438,9 +438,9 @@ export default function OrdersPage() {
 
               {/* Card Action Footer */}
               <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30 px-4 py-2.5 text-xs">
-                <span className="text-[11px] text-zinc-400 flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 text-amber-500" />
-                  Instant AI actions supported
+                <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-orange-500 fill-orange-500" />
+                  Instant Groq actions supported
                 </span>
 
                 <Link

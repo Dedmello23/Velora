@@ -270,7 +270,7 @@ export default function DashboardLayout({
                 >
                   <div className="font-semibold pb-1.5 border-b border-zinc-100 dark:border-zinc-800 flex justify-between">
                     <span>Updates</span>
-                    <span className="text-[9px] text-emerald-600 font-bold">LIVE</span>
+                    <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-full font-bold">LIVE</span>
                   </div>
                   <div className="divide-y divide-zinc-100 dark:divide-zinc-800 mt-1.5 space-y-1">
                     <div className="py-1">

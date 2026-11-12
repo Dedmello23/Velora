@@ -3,7 +3,7 @@
 Business user: a ShopEase customer. Logged-in user id: `C001` (Priya Raman), from `lib/currentUser.ts`.
 
 ## Stack
-- Next.js App Router, TypeScript, Tailwind, Supabase (server only, secret key), Gemini function calling, Zod. Do not change it.
+- Next.js App Router, TypeScript, Tailwind, Supabase (server only, secret key), Groq function calling, Zod. Do not change it.
 
 ## Tables (`seed/ecommerce_support.sql`)
 - `customers`: id, name, email, phone, city
@@ -29,3 +29,13 @@ Business user: a ShopEase customer. Logged-in user id: `C001` (Priya Raman), fro
 ## Safety
 - Never use the Supabase secret key in components. Only `lib/` and `app/api/` may read it.
 - Never commit `.env.local`. Run `npm run build` before every push.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
