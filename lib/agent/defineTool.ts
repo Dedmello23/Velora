@@ -62,6 +62,31 @@ function clean(node: unknown): unknown {
   return out;
 }
 
+/**
+ * Models often send null for an optional argument they do not want to set. Groq checks the model's call
+ * against this schema before our code runs and rejects null (HTTP 400, tool_use_failed). So optional
+ * properties are declared nullable here, and runAgent removes the nulls before Zod checks the rest.
+ */
+function allowNullForOptional(schema: Record<string, unknown>): Record<string, unknown> {
+  const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (!props) return schema;
+  const required = new Set((schema.required as string[] | undefined) ?? []);
+  const next: Record<string, Record<string, unknown>> = {};
+  for (const [key, prop] of Object.entries(props)) {
+    if (required.has(key)) {
+      next[key] = prop;
+      continue;
+    }
+    const type = prop.type;
+    next[key] = {
+      ...prop,
+      ...(typeof type === "string" ? { type: [type, "null"] } : {}),
+      ...(Array.isArray(prop.enum) ? { enum: [...prop.enum, null] } : {}),
+    };
+  }
+  return { ...schema, properties: next };
+}
+
 /** A tool in the OpenAI-style format that Groq's chat API expects. */
 export type ToolDefinition = {
   type: "function";
@@ -75,7 +100,9 @@ export function toToolDefinitions(tools: AgentTool[]): ToolDefinition[] {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: clean(z.toJSONSchema(tool.schema, { io: "input" })) as Record<string, unknown>,
+      parameters: allowNullForOptional(
+        clean(z.toJSONSchema(tool.schema, { io: "input" })) as Record<string, unknown>
+      ),
     },
   }));
 }

@@ -11,6 +11,8 @@ import {
   getItemsByOrder,
   getOwnOrder,
 } from "../support";
+import { getReturnPolicy } from "../policy";
+import { findOpenTicketForOrder, listMyTickets } from "../tickets";
 
 /*
  * Tools for the ShopEase Customer Support Agent (seed/ecommerce_support.sql).
@@ -121,7 +123,18 @@ const escalateToHuman = defineTool({
       .describe("high for orders 3+ days late or damaged items, low for general questions. Default medium."),
   }),
   run: async ({ issue, order_id, priority }) => {
-    if (order_id) await getOwnOrder(order_id);
+    if (order_id) {
+      await getOwnOrder(order_id);
+      // Guardrail in code: one unresolved ticket per order. Do not create a duplicate.
+      const existing = await findOpenTicketForOrder(order_id);
+      if (existing) {
+        return {
+          ticket: existing,
+          already_existed: true,
+          note: "The customer already has an unresolved ticket for this order. No new ticket was created.",
+        };
+      }
+    }
     const { data, error } = await getSupabase()
       .from("support_tickets")
       .insert({
@@ -137,11 +150,82 @@ const escalateToHuman = defineTool({
   },
 });
 
-/** Every tool in this list is given to the model. */
+const getMyReturns = defineTool({
+  name: "getMyReturns",
+  description:
+    "Use this when the customer asks about the status of a return or refund they already asked for, or what returns they have. Returns their return requests (newest first) with product names and status. Optionally for one order.",
+  schema: z.object({
+    order_id: orderId.optional().describe("Only returns for this order. Omit for all returns."),
+  }),
+  run: async ({ order_id }) => {
+    if (order_id) await getOwnOrder(order_id);
+    const db = getSupabase();
+    const { data: orders, error: oErr } = await db.from("orders").select("id").eq("customer_id", CURRENT_USER_ID);
+    if (oErr) throw new Error(oErr.message);
+    const orderIds = order_id ? [order_id] : orders.map((o) => o.id as number);
+    if (orderIds.length === 0) return { count: 0, returns: [] };
+
+    const { data: returns, error } = await db
+      .from("returns")
+      .select("id, order_id, product_id, reason, status, created_at")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+
+    const productIds = [...new Set(returns.map((r) => r.product_id as string))];
+    const { data: products, error: pErr } = productIds.length
+      ? await db.from("products").select("id, name").in("id", productIds)
+      : { data: [], error: null };
+    if (pErr) throw new Error(pErr.message);
+    const names = new Map((products ?? []).map((p) => [p.id as string, p.name as string]));
+    return {
+      count: returns.length,
+      returns: returns.map((r) => ({ ...r, product_name: names.get(r.product_id as string) ?? r.product_id })),
+    };
+  },
+});
+
+const getMyTickets = defineTool({
+  name: "getMyTickets",
+  description:
+    "Use this when the customer asks about a support ticket, whether anyone is looking at their problem, or what happened to a complaint they raised. Returns their support tickets (newest first) with priority and status.",
+  schema: z.object({
+    status: z
+      .enum(["open", "in_progress", "resolved"])
+      .optional()
+      .describe("Only tickets with this status. Omit for all tickets."),
+  }),
+  run: async ({ status }) => {
+    const tickets = await listMyTickets(status);
+    return { count: tickets.length, tickets };
+  },
+});
+
+const getReturnPolicyTool = defineTool({
+  name: "getReturnPolicy",
+  description:
+    "Use this for general questions about the return policy, or whether a kind of product can be returned and for how many days (for example 'can I return a hair dryer?'). Not for a specific order; use checkReturnEligibility for that.",
+  schema: z.object({
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(60)
+      .optional()
+      .describe("A product name, product id or category, for example 'shoes' or 'Electronics'. Omit for a summary."),
+  }),
+  run: async ({ query }) => getReturnPolicy(query),
+});
+
+/** Every tool in this list is given to the model. Write tools have writes: true. */
 export const tools: AgentTool[] = [
   getMyOrders,
   getOrderDetails,
   checkReturnEligibility,
   createReturnRequest,
   escalateToHuman,
+  getMyReturns,
+  getMyTickets,
+  getReturnPolicyTool,
 ];

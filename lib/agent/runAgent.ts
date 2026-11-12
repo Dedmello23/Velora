@@ -6,7 +6,7 @@ import type { ChatMessage } from "../schemas";
 import { tools } from "./tools";
 import { toToolDefinitions } from "./defineTool";
 import { buildSystemPrompt } from "./systemPrompt";
-import type { AgentResult, AgentStep } from "./types";
+import type { AgentEvent, AgentResult, AgentStep } from "./types";
 
 /** Stops the agent from looping forever and using up your Groq quota. A return needs about 4 tool calls. */
 const MAX_ROUNDS = 8;
@@ -23,7 +23,10 @@ type Message = Groq.Chat.ChatCompletionMessageParam;
  * 3. Send the results back to the model.
  * 4. Repeat until the model gives a final text answer (or MAX_ROUNDS is reached).
  */
-export async function runAgent(messages: ChatMessage[]): Promise<AgentResult> {
+export async function runAgent(
+  messages: ChatMessage[],
+  onEvent: (event: AgentEvent) => void = () => {}
+): Promise<AgentResult> {
   const steps: AgentStep[] = [];
   const toolDefinitions = toToolDefinitions(tools);
 
@@ -34,7 +37,8 @@ export async function runAgent(messages: ChatMessage[]): Promise<AgentResult> {
   ];
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const response = await askModel(history, toolDefinitions);
+    onEvent({ type: "model_start", round });
+    const response = await askModel(history, toolDefinitions, onEvent);
     const message = response.choices[0]?.message;
     const calls = message?.tool_calls ?? [];
 
@@ -48,7 +52,10 @@ export async function runAgent(messages: ChatMessage[]): Promise<AgentResult> {
     history.push({ role: "assistant", content: message?.content ?? "", tool_calls: calls });
 
     for (const call of calls) {
+      const tool = tools.find((t) => t.name === call.function.name);
+      onEvent({ type: "tool_start", id: call.id, tool: call.function.name, writes: tool?.writes ?? false });
       const step = await runTool(call.function.name, call.function.arguments);
+      onEvent({ type: "tool_end", id: call.id, tool: step.tool, ok: step.ok, error: step.ok ? undefined : step.error });
       steps.push(step);
       history.push({
         role: "tool",
@@ -64,7 +71,11 @@ export async function runAgent(messages: ChatMessage[]): Promise<AgentResult> {
   };
 }
 
-async function askModel(history: Message[], toolDefinitions: ReturnType<typeof toToolDefinitions>) {
+async function askModel(
+  history: Message[],
+  toolDefinitions: ReturnType<typeof toToolDefinitions>,
+  onEvent: (event: AgentEvent) => void
+) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await getGroq().chat.completions.create({
@@ -76,7 +87,10 @@ async function askModel(history: Message[], toolDefinitions: ReturnType<typeof t
         max_completion_tokens: 2048,
       });
     } catch (err) {
-      if (attempt < MODEL_RETRIES && isBadToolCall(err)) continue;
+      if (attempt < MODEL_RETRIES && isBadToolCall(err)) {
+        onEvent({ type: "model_retry", reason: "The model returned a malformed tool call" });
+        continue;
+      }
       throw err;
     }
   }
@@ -94,6 +108,11 @@ async function runTool(name: string, rawArguments: string): Promise<AgentStep> {
     rawArgs = rawArguments?.trim() ? JSON.parse(rawArguments) : {};
   } catch {
     return { tool: name, args: rawArguments, ok: false, writes: false, error: "Invalid arguments: not valid JSON" };
+  }
+
+  // The model may send null for optional arguments (see allowNullForOptional). Treat null as "not given".
+  if (rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs)) {
+    rawArgs = Object.fromEntries(Object.entries(rawArgs).filter(([, v]) => v !== null));
   }
 
   const tool = tools.find((t) => t.name === name);
