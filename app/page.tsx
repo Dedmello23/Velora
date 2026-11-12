@@ -1,13 +1,15 @@
 "use client";
 
 import AgentChat from "@/components/AgentChat";
-import AppHeader from "@/components/AppHeader";
+import DashboardLayout from "@/components/DashboardLayout";
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-3xl p-4 md:p-6">
-      <AppHeader />
+    <DashboardLayout
+      title="Support Agent"
+      subtitle="AI-driven conversational assistant for order tracking, returns, and support escalation"
+    >
       <AgentChat />
-    </main>
+    </DashboardLayout>
   );
 }
