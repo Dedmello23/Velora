@@ -402,6 +402,16 @@ insert into returns (order_id, product_id, reason, status, created_at) values
 insert into support_tickets (customer_id, order_id, issue, priority, status, created_at) values
   ('C002', null, 'Unable to apply coupon at checkout', 'low', 'resolved', (current_date - 10) + time '10:00');
 
+-- Indexes: Postgres does not index foreign keys by itself. These keep every lookup
+-- the app does (by customer, by order, by product) fast as the data grows.
+create index if not exists idx_orders_customer_date on orders (customer_id, order_date desc, id desc);
+create index if not exists idx_order_items_order    on order_items (order_id);
+create index if not exists idx_order_items_product  on order_items (product_id);
+create index if not exists idx_returns_order_product on returns (order_id, product_id);
+create index if not exists idx_returns_created      on returns (created_at desc);
+create index if not exists idx_tickets_customer     on support_tickets (customer_id, created_at desc);
+create index if not exists idx_tickets_created      on support_tickets (created_at desc);
+
 -- Row Level Security ON with no policies: only your server (secret key) can read/write.
 -- The public anon key cannot read these tables.
 alter table customers enable row level security;
