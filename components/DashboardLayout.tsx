@@ -15,13 +15,11 @@ import {
   X,
   Sun,
   Moon,
-  Palette,
   Bell,
   Maximize,
   User,
   Settings,
   Check,
-  Layers,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -62,53 +60,40 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [hovered, setHovered] = useState(false);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverSuppressedRef = useRef(false);
   const compact = collapsed && !hovered && !mobileOpen;
   const [profileOpen, setProfileOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [easterEggActive, setEasterEggActive] = useState(false);
 
   const profileRef = useRef<HTMLDivElement>(null);
-  const themeRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
-  const clickCountRef = useRef(0);
-  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("velora_sidebar_pinned");
     if (saved === "true") setCollapsed(false);
   }, []);
 
-  const handleThemeIconClick = () => {
-    clickCountRef.current += 1;
-    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-
-    if (clickCountRef.current >= 3) {
-      clickCountRef.current = 0;
-      setTheme("tung");
-      setThemeOpen(false);
-      setEasterEggActive(true);
-      setTimeout(() => setEasterEggActive(false), 5000);
-      return;
-    }
-
-    clickTimerRef.current = setTimeout(() => {
-      clickCountRef.current = 0;
-    }, 1000);
-
-    setThemeOpen(!themeOpen);
-  };
-
   // Small intent delays so a mouse passing by doesn't flicker the sidebar
   const setHoverDelayed = (value: boolean) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (value && hoverSuppressedRef.current) return;
+    if (!value) hoverSuppressedRef.current = false;
     hoverTimerRef.current = setTimeout(() => setHovered(value), value ? 90 : 160);
+  };
+
+  // After picking a page, fold the sidebar away at once; it re-opens on the next hover.
+  const handleNavClick = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverSuppressedRef.current = true;
+    setHovered(false);
+    setMobileOpen(false);
   };
 
   useEffect(() => {
@@ -129,9 +114,6 @@ export default function DashboardLayout({
     function handleClickOutside(event: MouseEvent) {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setProfileOpen(false);
-      }
-      if (themeRef.current && !themeRef.current.contains(event.target as Node)) {
-        setThemeOpen(false);
       }
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotificationsOpen(false);
@@ -157,16 +139,8 @@ export default function DashboardLayout({
 
   return (
     <div
-      className={`flex min-h-dvh transition-colors duration-200 overflow-x-hidden ${
-        theme === "tung"
-          ? "bg-transparent text-amber-50 dark"
-          : theme === "dark"
-          ? "bg-zinc-950 text-zinc-100 dark"
-          : theme === "gradient"
-          ? "bg-gradient-to-br from-slate-950 via-indigo-950/80 to-zinc-950 text-zinc-100 dark"
-          : theme === "og"
-          ? "bg-transparent text-zinc-100 dark"
-          : "bg-zinc-50/70 text-zinc-900"
+      className={`flex min-h-dvh overflow-x-hidden transition-colors duration-200 ${
+        theme === "dark" ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50/70 text-zinc-900"
       }`}
     >
       {/* Mobile Drawer Backdrop */}
@@ -191,11 +165,7 @@ export default function DashboardLayout({
         className={`fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r transition-[width,transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           compact ? "md:w-16" : "md:w-72"
         } ${collapsed && !compact && !mobileOpen ? "md:shadow-2xl" : ""} w-72 ${
-          theme === "tung"
-            ? "border-amber-900/40 bg-zinc-950/90 backdrop-blur-md text-amber-100"
-            : theme === "og"
-            ? "border-zinc-800/60 bg-zinc-950/85 backdrop-blur-md text-zinc-100"
-            : theme === "dark" || theme === "gradient"
+          theme === "dark"
             ? "border-zinc-800/80 bg-zinc-900/95 backdrop-blur-md text-zinc-100"
             : "border-zinc-200 bg-white text-zinc-900"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
@@ -203,13 +173,7 @@ export default function DashboardLayout({
         {/* Clean Logo Header Space */}
         <div
           className={`flex h-16 shrink-0 items-center gap-2 px-4 border-b ${
-            theme === "tung"
-              ? "border-amber-900/40 bg-zinc-950/60"
-              : theme === "og"
-              ? "border-zinc-800/60 bg-zinc-950/50"
-              : theme === "dark" || theme === "gradient"
-              ? "border-zinc-800/80"
-              : "border-zinc-100"
+            theme === "dark" ? "border-zinc-800/80" : "border-zinc-100"
           }`}
         >
           <Link href="/" className="relative h-10 min-w-0 flex-1 overflow-hidden">
@@ -239,54 +203,60 @@ export default function DashboardLayout({
 
         {/* Navigation Links (Clean: Badges removed) */}
         <div className="flex-1 overflow-y-auto px-2.5 py-4">
-          <div
-            className={`mb-2 h-4 whitespace-nowrap px-3.5 text-[10px] font-semibold tracking-wider uppercase transition-opacity duration-200 ${
-              compact ? "opacity-0" : "opacity-40 delay-100"
-            }`}
-          >
-            Menu
-          </div>
           <nav className="space-y-1">
             {NAV_ITEMS.map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`group flex items-center rounded-xl text-xs sm:text-sm font-medium transition-colors px-3.5 py-2.5 ${
-                    active
-                      ? theme === "gradient"
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs"
-                      : theme === "dark" || theme === "gradient" || theme === "og"
-                      ? "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
-                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 whitespace-nowrap">
-                    <Icon
-                      className={`h-4 w-4 shrink-0 transition-colors ${
-                        active
-                          ? theme === "gradient"
-                            ? "text-white"
-                            : "text-white dark:text-zinc-900"
-                          : "opacity-60 group-hover:opacity-100"
-                      }`}
-                    />
-                    <span
-                      className={`transition-opacity duration-200 ${
-                        compact ? "opacity-0" : "opacity-100 delay-100"
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                </Link>
+                <div key={item.href}>
+                  {item.href === "/admin" && (
+                    <div className="mx-3 my-2 border-t border-zinc-200 dark:border-zinc-800" />
+                  )}
+                  <Link
+                    href={item.href}
+                    onClick={handleNavClick}
+                    aria-current={active ? "page" : undefined}
+                    className={`group relative flex h-10 items-center rounded-lg px-3.5 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                        : "text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white"
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute -left-2.5 bottom-2 top-2 w-[3px] rounded-r-full bg-zinc-900 dark:bg-white" />
+                    )}
+                    <div className="flex items-center gap-3 whitespace-nowrap">
+                      <Icon className="h-[18px] w-[18px] shrink-0" />
+                      <span
+                        className={`transition-opacity duration-200 ${
+                          compact ? "opacity-0" : "opacity-100 delay-100"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                  </Link>
+                </div>
               );
             })}
           </nav>
+        </div>
+
+        {/* Signed-in customer */}
+        <div className="shrink-0 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <div className="flex items-center gap-3 whitespace-nowrap">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white dark:bg-white dark:text-zinc-900">
+              PR
+            </div>
+            <div
+              className={`min-w-0 leading-tight transition-opacity duration-200 ${
+                compact ? "opacity-0" : "opacity-100 delay-100"
+              }`}
+            >
+              <p className="truncate text-[13px] font-medium text-zinc-900 dark:text-white">Priya Raman</p>
+              <p className="text-xs text-zinc-500">Customer · C001</p>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -295,14 +265,8 @@ export default function DashboardLayout({
         {/* Top Header Bar */}
         <header
           className={`sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b px-3 sm:px-6 backdrop-blur-md transition-colors ${
-            theme === "tung"
-              ? "border-amber-900/40 bg-zinc-950/80 text-amber-100"
-              : theme === "og"
-              ? "border-zinc-800/60 bg-zinc-950/75 text-zinc-100"
-              : theme === "dark"
+            theme === "dark"
               ? "border-zinc-800/80 bg-zinc-900/80 text-zinc-100"
-              : theme === "gradient"
-              ? "border-indigo-900/40 bg-zinc-950/70 text-zinc-100"
               : "border-zinc-200 bg-white/90 text-zinc-900"
           }`}
         >
@@ -342,7 +306,7 @@ export default function DashboardLayout({
               {notificationsOpen && (
                 <div
                   className={`absolute right-0 mt-2 w-64 sm:w-72 rounded-2xl border p-3 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient" || theme === "og"
+                    theme === "dark"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -374,73 +338,19 @@ export default function DashboardLayout({
               <Maximize className="h-4 w-4" />
             </button>
 
-            {/* Theme Toggle Button */}
-            <div className="relative" ref={themeRef}>
-              <button
-                onClick={handleThemeIconClick}
-                className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl opacity-70 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title="Change Theme (Triple tap for Easter Egg)"
-              >
-                {theme === "light" && <Sun className="h-4 w-4 text-amber-500" />}
-                {theme === "dark" && <Moon className="h-4 w-4 text-indigo-400" />}
-                {theme === "gradient" && <Palette className="h-4 w-4 text-fuchsia-400" />}
-                {theme === "og" && <Layers className="h-4 w-4 text-emerald-400" />}
-                {theme === "tung" && (
-                  <img
-                    src="/tung-mark.png"
-                    alt="Tung"
-                    className="h-5 w-5 object-contain animate-bounce"
-                  />
-                )}
-              </button>
-
-              {themeOpen && (
-                <div
-                  className={`absolute right-0 mt-2 w-52 rounded-2xl border p-1.5 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient" || theme === "og" || theme === "tung"
-                      ? "border-zinc-800 bg-zinc-900 text-zinc-200"
-                      : "border-zinc-200 bg-white text-zinc-800"
-                  }`}
-                >
-                  <div className="px-2 py-1 text-[9px] font-semibold opacity-40 uppercase tracking-wider">
-                    Theme
-                  </div>
-                  {(
-                    [
-                      { id: "light", label: "Light", icon: Sun, color: "text-amber-500" },
-                      { id: "dark", label: "Dark", icon: Moon, color: "text-indigo-400" },
-                      { id: "gradient", label: "Gradient", icon: Palette, color: "text-fuchsia-400" },
-                      { id: "og", label: "OG Papercut", icon: Layers, color: "text-emerald-400" },
-                      ...(theme === "tung" || easterEggActive
-                        ? [{ id: "tung", label: "Tung Tung Sahur 🪵", icon: Layers, color: "text-amber-400" }]
-                        : []),
-                    ] as const
-                  ).map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => {
-                          setTheme(t.id as any);
-                          setThemeOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left font-medium transition-colors ${
-                          theme === t.id
-                            ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Icon className={`h-3.5 w-3.5 ${t.color}`} />
-                          <span>{t.label}</span>
-                        </div>
-                        {theme === t.id && <Check className="h-3 w-3 text-emerald-500" />}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl opacity-70 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 text-indigo-400" />
+              ) : (
+                <Sun className="h-4 w-4 text-amber-500" />
               )}
-            </div>
+            </button>
 
             {/* Profile Dropdown */}
             <div className="relative ml-0.5" ref={profileRef}>
@@ -456,7 +366,7 @@ export default function DashboardLayout({
               {profileOpen && (
                 <div
                   className={`absolute right-0 mt-2 w-60 sm:w-64 rounded-2xl border p-2 shadow-xl z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient" || theme === "og"
+                    theme === "dark"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -489,13 +399,13 @@ export default function DashboardLayout({
 
                     <button
                       onClick={() => {
-                        setThemeOpen(true);
+                        toggleTheme();
                         setProfileOpen(false);
                       }}
                       className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <Settings className="h-3.5 w-3.5 opacity-60" />
-                      <span>Display Settings</span>
+                      <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
                     </button>
                   </div>
 
@@ -515,7 +425,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content Body */}
-        <main className="flex-1 flex flex-col p-2 sm:p-4 md:p-8 max-w-5xl w-full mx-auto min-h-0">
+        <main key={pathname} className="animate-in fade-in-50 duration-200 flex-1 flex flex-col p-2 sm:p-4 md:p-8 max-w-5xl w-full mx-auto min-h-0">
           {children}
         </main>
       </div>
@@ -525,7 +435,7 @@ export default function DashboardLayout({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-xs">
           <div
             className={`w-full max-w-sm sm:max-w-md rounded-2xl border p-5 sm:p-6 shadow-2xl animate-in fade-in-50 zoom-in-95 ${
-              theme === "dark" || theme === "gradient" || theme === "og"
+              theme === "dark"
                 ? "border-zinc-800 bg-zinc-900 text-zinc-100"
                 : "border-zinc-200 bg-white text-zinc-900"
             }`}
@@ -571,25 +481,6 @@ export default function DashboardLayout({
             >
               Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Easter Egg Celebration Toast */}
-      {easterEggActive && (
-        <div className="fixed top-16 right-4 sm:right-6 z-50 flex items-center gap-3 rounded-2xl border border-amber-500/60 bg-zinc-950/95 px-4 py-3 shadow-2xl text-amber-100 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
-          <img
-            src="/tung-mark.png"
-            alt="Tung Tung Sahur"
-            className="h-10 w-10 object-contain animate-bounce shrink-0"
-          />
-          <div>
-            <p className="font-black text-xs sm:text-sm text-amber-400 uppercase tracking-wide">
-              🪵 Tung Tung Tung Sahur!
-            </p>
-            <p className="text-[11px] text-amber-200/80">
-              Easter egg unlocked! Stays until you sign out.
-            </p>
           </div>
         </div>
       )}
