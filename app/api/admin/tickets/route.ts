@@ -3,30 +3,32 @@ import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+type TicketRow = {
+  id: number;
+  customer_id: string;
+  order_id: number | null;
+  issue: string;
+  priority: string;
+  status: string;
+  created_at: string;
+  customers: { name: string } | { name: string }[] | null;
+};
+
 export async function GET() {
   try {
-    const db = getSupabase();
-    const { data: tickets, error: tErr } = await db
+    // One query: tickets joined with the customer's name.
+    const { data, error } = await getSupabase()
       .from("support_tickets")
-      .select("id, customer_id, order_id, issue, priority, status, created_at")
+      .select("id, customer_id, order_id, issue, priority, status, created_at, customers(name)")
       .order("created_at", { ascending: false })
       .limit(100);
-    if (tErr) throw new Error(tErr.message);
+    if (error) throw new Error(error.message);
 
-    const customerIds = [...new Set((tickets ?? []).map((t) => t.customer_id as string))];
-    const { data: customers, error: cErr } = customerIds.length
-      ? await db.from("customers").select("id, name").in("id", customerIds)
-      : { data: [], error: null };
-    if (cErr) throw new Error(cErr.message);
-
-    const customerNames = new Map((customers ?? []).map((c) => [c.id as string, c.name as string]));
-
-    return NextResponse.json({
-      tickets: (tickets ?? []).map((t) => ({
-        ...t,
-        customer_name: customerNames.get(t.customer_id as string) ?? t.customer_id,
-      })),
+    const tickets = (data as unknown as TicketRow[]).map(({ customers, ...t }) => {
+      const c = Array.isArray(customers) ? customers[0] : customers;
+      return { ...t, customer_name: c?.name ?? t.customer_id };
     });
+    return NextResponse.json({ tickets });
   } catch (err) {
     console.error("GET /api/admin/tickets failed:", err);
     return NextResponse.json({ error: "Could not load admin tickets." }, { status: 500 });
