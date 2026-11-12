@@ -14,6 +14,7 @@ import {
   type OrderWithItems,
 } from "../support";
 import { getReturnPolicy } from "../policy";
+import { findReturnableItems } from "../returnable";
 import { findOpenTicketForOrder, listMyTickets } from "../tickets";
 
 /*
@@ -229,6 +230,22 @@ const getReturnPolicyTool = defineTool({
   run: async ({ query }) => getReturnPolicy(query),
 });
 
+const findReturnable = defineTool({
+  name: "findReturnableItems",
+  description:
+    "Use this when the customer asks what they can still return or until when, wants to return several items, or wants to return a product without giving an order number (for example 'the shoes'). Scans their delivered orders and lists what can be returned with days left (soonest deadline first) and what cannot with the reason. Pass product for a named product.",
+  schema: z.object({
+    product: z
+      .string()
+      .trim()
+      .min(1)
+      .max(60)
+      .optional()
+      .describe("Only items whose name has this word, for example 'shoes'. Omit to list everything."),
+  }),
+  run: async ({ product }) => findReturnableItems(product),
+});
+
 /** Every tool in this list is given to the model. Write tools have writes: true. */
 export const tools: AgentTool[] = [
   getMyOrders,
@@ -239,4 +256,5 @@ export const tools: AgentTool[] = [
   getMyReturns,
   getMyTickets,
   getReturnPolicyTool,
+  findReturnable,
 ];
