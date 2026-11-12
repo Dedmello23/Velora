@@ -158,3 +158,40 @@ export async function checkEligibility(orderId: number, productId: string): Prom
     reason: `Eligible: delivered ${order.delivered_date}, return allowed until ${deadline}.`,
   };
 }
+
+/**
+ * THE CANCELLATION RULE (stretch):
+ * Cancellable only when orders.status is 'placed'.
+ */
+export async function checkCancellable(
+  orderId: number
+): Promise<{ cancellable: boolean; reason: string }> {
+  const order = await getOwnOrder(orderId);
+
+  if (order.status === "placed") {
+    return {
+      cancellable: true,
+      reason: `Order ${orderId} has status "placed" and has not shipped yet. It can be cancelled.`,
+    };
+  }
+
+  if (order.status === "cancelled") {
+    return {
+      cancellable: false,
+      reason: `Order ${orderId} has already been cancelled.`,
+    };
+  }
+
+  if (order.status === "delivered") {
+    return {
+      cancellable: false,
+      reason: `Order ${orderId} has already been delivered and can no longer be cancelled. A return may be possible instead.`,
+    };
+  }
+
+  return {
+    cancellable: false,
+    reason: `Order ${orderId} is "${order.status}" and can no longer be cancelled.`,
+  };
+}
+
