@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Hide ugly scrollbars globally while keeping smooth scrolling functionality */
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+*::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-zinc-50 text-zinc-900 antialiased transition-colors duration-200 min-h-dvh;
+}
+
+.dark body {
+  @apply bg-zinc-950 text-zinc-100;
+}
+
+.theme-gradient body {
+  background: radial-gradient(circle at top left, #1e1b4b, #09090b 60%, #030712 100%);
+  color: #f4f4f5;
 }
