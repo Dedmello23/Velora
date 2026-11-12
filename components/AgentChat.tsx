@@ -5,14 +5,13 @@ import type { AgentEvent, AgentStep } from "@/lib/agent/types";
 import { statusFor } from "./agentStatus";
 import ReplyText from "./ReplyText";
 import {
-  Send,
+  ArrowUp,
   Bot,
   ChevronDown,
-  ChevronRight,
   Database,
   CheckCircle2,
   AlertCircle,
-  RotateCcw,
+  SquarePen,
 } from "lucide-react";
 
 type Message = { role: "user" | "model"; text: string; steps?: AgentStep[] };
@@ -31,6 +30,15 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
   const [status, setStatus] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const prefillDone = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the composer with its content (up to the max height), shrink back when cleared.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+  }, [input]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -110,246 +118,184 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
   }
 
   return (
-    <div className="flex flex-1 flex-col rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden h-[calc(100dvh-5.5rem)] md:h-[calc(100vh-8.5rem)] min-h-[440px] transition-colors">
-      {/* Chat Sub-header */}
-      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 px-3.5 py-2.5 sm:px-6 sm:py-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-2xs">
-            <Bot className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              ShopEase Assistant
-            </h2>
-            <p className="hidden text-xs text-zinc-500 sm:block">
-              Orders, returns and support
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={() => setMessages([])}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-              title="Reset Chat"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span>Reset</span>
-            </button>
-          )}
-          <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium leading-none text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Online
-          </span>
-        </div>
-      </div>
-
-      {/* Messages Scroll Area */}
-      <div className="flex-1 space-y-3.5 overflow-y-auto p-3 sm:p-5 break-words min-h-0">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full max-w-sm mx-auto text-center py-4">
-            <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 mb-3">
-              <Bot className="h-6 w-6" />
-            </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">
-              How can I help today?
-            </h3>
-            <p className="mt-1 text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed px-2">
-              Track live orders, request eligible product returns, or escalate delayed shipments.
-            </p>
-
-            <div className="mt-4 w-full space-y-1.5">
-              {SAMPLE_PROMPTS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => send(p)}
-                  className="w-full text-left rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/60 px-3.5 py-3 text-[13px] text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors flex items-center justify-between gap-2 group"
-                >
-                  <span className="line-clamp-2">{p}</span>
-                  <ChevronRight className="h-4 w-4 text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`flex items-start gap-2.5 ${
-              m.role === "user" ? "flex-row-reverse" : "flex-row"
-            }`}
-          >
-            {m.role === "model" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                <Bot className="h-4 w-4" />
-              </div>
-            )}
-
-            {/* Bubble Container */}
-            <div
-              className={`space-y-1.5 ${
-                m.role === "user"
-                  ? "max-w-[85%] sm:max-w-[75%]"
-                  : "max-w-[92%] sm:max-w-[80%]"
-              }`}
-            >
-              {m.steps && m.steps.length > 0 && <ToolSteps steps={m.steps} />}
-
-              <div
-                className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "bg-zinc-900 dark:bg-indigo-600 text-white rounded-br-md"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-bl-md whitespace-pre-wrap"
-                }`}
-              >
-                {m.role === "model" ? <ReplyText text={m.text} /> : m.text}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex items-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-              <Bot className="h-4 w-4" />
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-zinc-100 dark:bg-zinc-800 px-4 py-2.5 text-[13px] text-zinc-600 dark:text-zinc-300">
-              <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-zinc-400" />
-              <span>{status || "Working on it"}...</span>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-2.5 text-xs text-rose-700 dark:text-rose-300">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Suggested Quick Prompt Chips (Zero scrollbar, clean momentum touch) */}
-      {messages.length > 0 && (
-      <div className="flex items-center gap-1.5 overflow-x-auto border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/70 px-3 py-1.5 text-xs shrink-0">
-        <span className="flex items-center gap-1 font-semibold text-zinc-400 text-[10px] shrink-0 uppercase tracking-wider">
-          Try:
-        </span>
-        {SAMPLE_PROMPTS.map((p) => (
+    <div className="flex h-[calc(100dvh-3.5rem)] flex-col sm:h-[calc(100dvh-4rem)]">
+      {/* Slim title row */}
+      <div className="flex h-11 shrink-0 items-center justify-between px-4 sm:px-6">
+        <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">ShopEase Assistant</span>
+        {messages.length > 0 && (
           <button
-            key={p}
-            type="button"
-            disabled={loading}
-            onClick={() => send(p)}
-            className="min-h-[30px] shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600 active:bg-zinc-100 dark:active:bg-zinc-700 disabled:opacity-50 transition-all shadow-2xs whitespace-nowrap"
+            onClick={() => {
+              setMessages([]);
+              setError("");
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            {p}
+            <SquarePen className="h-3.5 w-3.5" />
+            New chat
           </button>
-        ))}
+        )}
       </div>
-      )}
 
-      {/* Input Box Footer */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          send(input);
-        }}
-        className="flex gap-2 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2.5 sm:p-3.5 shrink-0"
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Message ShopEase Assistant"
-          className="min-h-[44px] flex-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-900 dark:focus:border-zinc-300 focus:bg-white dark:focus:bg-zinc-800/80 transition-all"
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl bg-zinc-900 dark:bg-white px-3 sm:px-4 text-sm font-semibold text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 active:scale-95 disabled:opacity-40 transition-all"
+      {/* Conversation */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 pb-6">
+          {messages.length === 0 && !loading ? (
+            <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                <Bot className="h-6 w-6" />
+              </div>
+              <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
+                How can I help today?
+              </h1>
+              <p className="mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
+                Track an order, start a return, or escalate a delayed shipment.
+              </p>
+              <div className="mt-8 grid w-full gap-2 sm:grid-cols-3">
+                {SAMPLE_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => send(p)}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left text-[13px] leading-snug text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-7 pt-4">
+              {messages.map((m, i) =>
+                m.role === "user" ? (
+                  <div key={i} className="flex justify-end">
+                    <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl bg-zinc-100 px-4 py-2.5 text-[15px] leading-6 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
+                      {m.text}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} className="space-y-3">
+                    {m.steps && m.steps.length > 0 && <ToolSteps steps={m.steps} />}
+                    <div className="whitespace-pre-wrap break-words text-[15px] leading-7 text-zinc-800 dark:text-zinc-200">
+                      <ReplyText text={m.text} />
+                    </div>
+                  </div>
+                )
+              )}
+
+              {loading && (
+                <div className="flex items-center gap-2.5 text-sm text-zinc-500 dark:text-zinc-400">
+                  <span className="flex gap-1" aria-hidden>
+                    {[0, 150, 300].map((d) => (
+                      <span
+                        key={d}
+                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400"
+                        style={{ animationDelay: `${d}ms` }}
+                      />
+                    ))}
+                  </span>
+                  <span>{status || "Working on it"}…</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
+          )}
+          {messages.length === 0 && error && (
+            <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Composer */}
+      <div className="shrink-0 px-4 pb-3 pt-1">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(input);
+          }}
+          className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-3xl border border-zinc-200 bg-white p-2 pl-5 shadow-sm transition-colors focus-within:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:focus-within:border-zinc-500"
         >
-          <span className="hidden sm:inline">Send</span>
-          <Send className="h-3.5 w-3.5" />
-        </button>
-      </form>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send(input);
+              }
+            }}
+            placeholder="Message ShopEase Assistant"
+            className="max-h-48 min-h-[36px] flex-1 resize-none self-center bg-transparent py-1.5 text-[15px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            aria-label="Send message"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white transition-opacity hover:bg-zinc-700 disabled:opacity-25 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            <ArrowUp className="h-[18px] w-[18px]" />
+          </button>
+        </form>
+        <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-zinc-400">
+          The assistant can make mistakes. Check important order details.
+        </p>
+      </div>
     </div>
   );
 }
 
-/** Modern Tool Steps Accordion with clean dark mode */
+/** Compact record of the tools the agent used; click one to inspect its input and output. */
 function ToolSteps({ steps }: { steps: AgentStep[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const open = openIndex !== null ? steps[openIndex] : null;
 
   return (
-    <div className="space-y-1.5 my-1">
-      {steps.map((s, i) => {
-        const isOpen = openIndex === i;
-        return (
-          <div
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {steps.map((s, i) => (
+          <button
             key={i}
-            className="rounded-xl border border-zinc-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-800 overflow-hidden text-xs"
+            type="button"
+            onClick={() => setOpenIndex(openIndex === i ? null : i)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              openIndex === i
+                ? "border-zinc-400 bg-zinc-100 dark:border-zinc-500 dark:bg-zinc-800"
+                : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+            }`}
           >
-            <button
-              type="button"
-              onClick={() => setOpenIndex(isOpen ? null : i)}
-              className="flex w-full items-center justify-between p-2 sm:p-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
-            >
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] sm:text-[11px] font-semibold ${
-                    s.ok
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                      : "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
-                  }`}
-                >
-                  {s.ok ? (
-                    <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <AlertCircle className="h-3 w-3" />
-                  )}
-                  {s.ok ? "Executed" : "Failed"}
-                </span>
-
-                <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100 text-[11px]">
-                  {s.tool}
-                </span>
-
-                {s.writes && (
-                  <span className="flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                    <Database className="h-2 w-2" />
-                    WRITES DB
-                  </span>
-                )}
-              </div>
-
-              <ChevronDown
-                className={`h-3 w-3 text-zinc-400 transition-transform ${
-                  isOpen ? "rotate-180 text-zinc-800 dark:text-zinc-200" : ""
-                }`}
-              />
-            </button>
-
-            {isOpen && (
-              <div className="border-t border-zinc-100 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/80 p-2.5 sm:p-3">
-                <div className="mb-1 text-[9px] font-semibold text-zinc-400 uppercase tracking-wider">
-                  Parameters & Result
-                </div>
-                <pre className="max-h-48 overflow-x-auto whitespace-pre-wrap rounded-lg bg-zinc-900 dark:bg-black p-2 text-[10px] font-mono text-zinc-100 shadow-inner">
-                  {JSON.stringify(
-                    { args: s.args, ...(s.ok ? { result: s.result } : { error: s.error }) },
-                    null,
-                    2
-                  )}
-                </pre>
-              </div>
+            {s.ok ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            ) : (
+              <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
             )}
-          </div>
-        );
-      })}
+            <span className="font-mono text-zinc-700 dark:text-zinc-200">{s.tool}</span>
+            {s.writes && <Database className="h-3 w-3 text-amber-500" aria-label="Writes to database" />}
+            <ChevronDown
+              className={`h-3 w-3 text-zinc-400 transition-transform ${openIndex === i ? "rotate-180" : ""}`}
+            />
+          </button>
+        ))}
+      </div>
+      {open && (
+        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl bg-zinc-900 p-3 font-mono text-[11px] leading-relaxed text-zinc-100 dark:bg-black">
+          {JSON.stringify(
+            { args: open.args, ...(open.ok ? { result: open.result } : { error: open.error }) },
+            null,
+            2
+          )}
+        </pre>
+      )}
     </div>
   );
 }
