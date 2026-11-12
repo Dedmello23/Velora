@@ -49,36 +49,82 @@ export type OrderItemView = {
   return_window_days: number;
 };
 
-/** Items (with product names and return windows) for the given orders, grouped by order id. */
+/** PostgREST returns an embedded to-one row as an object, but typings and joins can give a one-item array. */
+function one<T>(v: T | T[] | null | undefined): T | null {
+  return Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+}
+
+type RawItem = {
+  order_id?: number;
+  product_id: string;
+  quantity: number;
+  unit_price: number | string;
+  products?: { name: string; return_window_days: number } | { name: string; return_window_days: number }[] | null;
+};
+
+function toItemView(i: RawItem): OrderItemView {
+  const p = one(i.products);
+  return {
+    product_id: i.product_id,
+    name: p?.name ?? i.product_id,
+    quantity: i.quantity,
+    unit_price: Number(i.unit_price),
+    return_window_days: p?.return_window_days ?? 0,
+  };
+}
+
+/** One embedded select: the items of an order with each product's name and return window. */
+export const ITEMS_EMBED = "order_items(product_id, quantity, unit_price, products(name, return_window_days))";
+
+export type OrderWithItems = OrderRow & { items: OrderItemView[] };
+
+function withItems(row: unknown): OrderWithItems {
+  const { order_items, ...order } = row as OrderRow & { order_items?: RawItem[] };
+  return { ...order, items: (order_items ?? []).map(toItemView) };
+}
+
+/** Items (with product names and return windows) for the given orders, grouped by order id. ONE round trip. */
 export async function getItemsByOrder(orderIds: number[]): Promise<Record<number, OrderItemView[]>> {
   if (orderIds.length === 0) return {};
-  const db = getSupabase();
-  const { data: items, error } = await db
+  const { data, error } = await getSupabase()
     .from("order_items")
-    .select("order_id, product_id, quantity, unit_price")
+    .select("order_id, product_id, quantity, unit_price, products(name, return_window_days)")
     .in("order_id", orderIds);
   if (error) throw new Error(error.message);
 
-  const productIds = [...new Set((items ?? []).map((i) => i.product_id as string))];
-  const { data: products, error: pErr } = await db
-    .from("products")
-    .select("id, name, return_window_days")
-    .in("id", productIds);
-  if (pErr) throw new Error(pErr.message);
-  const byId = new Map((products ?? []).map((p) => [p.id as string, p]));
-
   const out: Record<number, OrderItemView[]> = {};
-  for (const i of items ?? []) {
-    const p = byId.get(i.product_id as string);
-    (out[i.order_id as number] ??= []).push({
-      product_id: i.product_id as string,
-      name: (p?.name as string) ?? i.product_id,
-      quantity: i.quantity as number,
-      unit_price: Number(i.unit_price),
-      return_window_days: (p?.return_window_days as number) ?? 0,
-    });
+  for (const i of (data ?? []) as unknown as RawItem[]) {
+    (out[i.order_id as number] ??= []).push(toItemView(i));
   }
   return out;
+}
+
+/** The customer's orders with their items in ONE query. Newest first. */
+export async function getOrdersWithItems(opts: { status?: string; limit?: number } = {}): Promise<OrderWithItems[]> {
+  let query = getSupabase()
+    .from("orders")
+    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}`)
+    .eq("customer_id", CURRENT_USER_ID)
+    .order("order_date", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(opts.limit ?? 50);
+  if (opts.status) query = query.eq("status", opts.status);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(withItems);
+}
+
+/** One of the customer's orders with its items in ONE query. Throws if it is not theirs. */
+export async function getOwnOrderWithItems(orderId: number): Promise<OrderWithItems> {
+  const { data, error } = await getSupabase()
+    .from("orders")
+    .select(`${ORDER_COLUMNS}, ${ITEMS_EMBED}`)
+    .eq("id", orderId)
+    .eq("customer_id", CURRENT_USER_ID)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`Order ${orderId} was not found on your account.`);
+  return withItems(data);
 }
 
 export type Eligibility = {
@@ -97,9 +143,20 @@ export type Eligibility = {
  * allowed only for delivered orders, within products.return_window_days of delivered_date.
  */
 export async function checkEligibility(orderId: number, productId: string): Promise<Eligibility> {
-  const order = await getOwnOrder(orderId);
-  const items = (await getItemsByOrder([orderId]))[orderId] ?? [];
-  const item = items.find((i) => i.product_id === productId);
+  // Two independent reads run in parallel: the order with its items, and any existing return.
+  const [orderResult, existingResult] = await Promise.all([
+    getOwnOrderWithItems(orderId).then((order) => ({ order, error: null as Error | null }), (error: Error) => ({ order: null, error })),
+    getSupabase()
+      .from("returns")
+      .select("id, status")
+      .eq("order_id", orderId)
+      .eq("product_id", productId)
+      .neq("status", "rejected")
+      .limit(1),
+  ]);
+  if (orderResult.error || !orderResult.order) throw orderResult.error ?? new Error("Order lookup failed.");
+  const order = orderResult.order;
+  const item = order.items.find((i) => i.product_id === productId);
   const base = { order_id: orderId, product_id: productId };
 
   if (!item) {
@@ -134,13 +191,7 @@ export async function checkEligibility(orderId: number, productId: string): Prom
     };
   }
 
-  const { data: existing, error } = await getSupabase()
-    .from("returns")
-    .select("id, status")
-    .eq("order_id", orderId)
-    .eq("product_id", productId)
-    .neq("status", "rejected")
-    .limit(1);
+  const { data: existing, error } = existingResult;
   if (error) throw new Error(error.message);
   if (existing && existing.length > 0) {
     return {
