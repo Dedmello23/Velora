@@ -38,3 +38,12 @@ body {
   background-attachment: fixed;
   color: #f8fafc;
 }
+
+.theme-tung body {
+  background-color: #120e0b;
+  background-image: linear-gradient(to right, rgba(18, 14, 11, 0.90) 0%, rgba(18, 14, 11, 0.75) 55%, rgba(18, 14, 11, 0.35) 100%), url('/tung-wallpaper.jpg');
+  background-size: cover;
+  background-position: right center;
+  background-attachment: fixed;
+  color: #fef3c7;
+}

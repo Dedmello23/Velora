@@ -16,8 +16,33 @@ export default function BrandLogo({
   return (
     <div className={`flex items-center justify-center transition-all ${className}`}>
       <div className="relative flex items-center justify-center h-10 w-full px-1">
-        {/* Light theme: Crisp dark logo & mark */}
-        {theme === "light" ? (
+        {/* Easter Egg: Tung Tung Sahur Edition */}
+        {theme === "tung" ? (
+          collapsed ? (
+            <img
+              src="/tung-mark.png"
+              alt="Tung Tung Sahur"
+              className="h-8 w-auto object-contain animate-bounce"
+            />
+          ) : (
+            <div className="flex items-center gap-2 animate-in fade-in-50 duration-150">
+              <img
+                src="/tung-mark.png"
+                alt="Tung Tung Sahur"
+                className="h-8 w-auto object-contain drop-shadow-md"
+              />
+              <div className="flex flex-col text-left leading-none">
+                <span className="font-black text-xs tracking-tight text-amber-400 uppercase">
+                  Tung Tung
+                </span>
+                <span className="text-[8px] font-bold text-amber-200/80 tracking-widest uppercase mt-0.5">
+                  Sahur Edition
+                </span>
+              </div>
+            </div>
+          )
+        ) : theme === "light" ? (
+          /* Light theme: Crisp dark logo & mark */
           collapsed ? (
             <img
               src="/velora-mark-dark.png"

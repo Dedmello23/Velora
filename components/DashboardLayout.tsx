@@ -69,10 +69,13 @@ export default function DashboardLayout({
   const [themeOpen, setThemeOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [easterEggActive, setEasterEggActive] = useState(false);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("velora_sidebar_collapsed");
@@ -80,6 +83,26 @@ export default function DashboardLayout({
       setCollapsed(saved === "true");
     }
   }, []);
+
+  const handleThemeIconClick = () => {
+    clickCountRef.current += 1;
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0;
+      setTheme("tung");
+      setThemeOpen(false);
+      setEasterEggActive(true);
+      setTimeout(() => setEasterEggActive(false), 5000);
+      return;
+    }
+
+    clickTimerRef.current = setTimeout(() => {
+      clickCountRef.current = 0;
+    }, 1000);
+
+    setThemeOpen(!themeOpen);
+  };
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -106,6 +129,7 @@ export default function DashboardLayout({
   }, []);
 
   async function logout() {
+    localStorage.removeItem("velora_theme");
     await fetch("/api/logout", { method: "POST" });
     window.location.href = "/login";
   }
@@ -121,7 +145,9 @@ export default function DashboardLayout({
   return (
     <div
       className={`flex min-h-dvh transition-colors duration-200 overflow-x-hidden ${
-        theme === "dark"
+        theme === "tung"
+          ? "bg-transparent text-amber-50 dark"
+          : theme === "dark"
           ? "bg-zinc-950 text-zinc-100 dark"
           : theme === "gradient"
           ? "bg-gradient-to-br from-slate-950 via-indigo-950/80 to-zinc-950 text-zinc-100 dark"
@@ -143,7 +169,9 @@ export default function DashboardLayout({
         className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-200 md:static ${
           collapsed ? "md:w-16" : "md:w-72"
         } w-72 ${
-          theme === "og"
+          theme === "tung"
+            ? "border-amber-900/40 bg-zinc-950/90 backdrop-blur-md text-amber-100"
+            : theme === "og"
             ? "border-zinc-800/60 bg-zinc-950/85 backdrop-blur-md text-zinc-100"
             : theme === "dark" || theme === "gradient"
             ? "border-zinc-800/80 bg-zinc-900/95 backdrop-blur-md text-zinc-100"
@@ -155,7 +183,9 @@ export default function DashboardLayout({
           className={`flex h-16 items-center px-4 border-b transition-all ${
             collapsed ? "justify-center" : "justify-between"
           } ${
-            theme === "og"
+            theme === "tung"
+              ? "border-amber-900/40 bg-zinc-950/60"
+              : theme === "og"
               ? "border-zinc-800/60 bg-zinc-950/50"
               : theme === "dark" || theme === "gradient"
               ? "border-zinc-800/80"
@@ -227,7 +257,9 @@ export default function DashboardLayout({
         {/* Top Header Bar */}
         <header
           className={`sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b px-3 sm:px-6 backdrop-blur-md transition-colors ${
-            theme === "og"
+            theme === "tung"
+              ? "border-amber-900/40 bg-zinc-950/80 text-amber-100"
+              : theme === "og"
               ? "border-zinc-800/60 bg-zinc-950/75 text-zinc-100"
               : theme === "dark"
               ? "border-zinc-800/80 bg-zinc-900/80 text-zinc-100"
@@ -307,20 +339,27 @@ export default function DashboardLayout({
             {/* Theme Toggle Button */}
             <div className="relative" ref={themeRef}>
               <button
-                onClick={() => setThemeOpen(!themeOpen)}
+                onClick={handleThemeIconClick}
                 className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl opacity-70 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title="Change Theme"
+                title="Change Theme (Triple tap for Easter Egg)"
               >
                 {theme === "light" && <Sun className="h-4 w-4 text-amber-500" />}
                 {theme === "dark" && <Moon className="h-4 w-4 text-indigo-400" />}
                 {theme === "gradient" && <Palette className="h-4 w-4 text-fuchsia-400" />}
                 {theme === "og" && <Layers className="h-4 w-4 text-emerald-400" />}
+                {theme === "tung" && (
+                  <img
+                    src="/tung-mark.png"
+                    alt="Tung"
+                    className="h-5 w-5 object-contain animate-bounce"
+                  />
+                )}
               </button>
 
               {themeOpen && (
                 <div
-                  className={`absolute right-0 mt-2 w-48 rounded-2xl border p-1.5 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
-                    theme === "dark" || theme === "gradient" || theme === "og"
+                  className={`absolute right-0 mt-2 w-52 rounded-2xl border p-1.5 shadow-lg z-50 text-xs animate-in fade-in-50 zoom-in-95 ${
+                    theme === "dark" || theme === "gradient" || theme === "og" || theme === "tung"
                       ? "border-zinc-800 bg-zinc-900 text-zinc-200"
                       : "border-zinc-200 bg-white text-zinc-800"
                   }`}
@@ -334,6 +373,9 @@ export default function DashboardLayout({
                       { id: "dark", label: "Dark", icon: Moon, color: "text-indigo-400" },
                       { id: "gradient", label: "Gradient", icon: Palette, color: "text-fuchsia-400" },
                       { id: "og", label: "OG Papercut", icon: Layers, color: "text-emerald-400" },
+                      ...(theme === "tung" || easterEggActive
+                        ? [{ id: "tung", label: "Tung Tung Sahur 🪵", icon: Layers, color: "text-amber-400" }]
+                        : []),
                     ] as const
                   ).map((t) => {
                     const Icon = t.icon;
@@ -341,7 +383,7 @@ export default function DashboardLayout({
                       <button
                         key={t.id}
                         onClick={() => {
-                          setTheme(t.id);
+                          setTheme(t.id as any);
                           setThemeOpen(false);
                         }}
                         className={`flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left font-medium transition-colors ${
@@ -491,6 +533,25 @@ export default function DashboardLayout({
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Easter Egg Celebration Toast */}
+      {easterEggActive && (
+        <div className="fixed top-16 right-4 sm:right-6 z-50 flex items-center gap-3 rounded-2xl border border-amber-500/60 bg-zinc-950/95 px-4 py-3 shadow-2xl text-amber-100 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
+          <img
+            src="/tung-mark.png"
+            alt="Tung Tung Sahur"
+            className="h-10 w-10 object-contain animate-bounce shrink-0"
+          />
+          <div>
+            <p className="font-black text-xs sm:text-sm text-amber-400 uppercase tracking-wide">
+              🪵 Tung Tung Tung Sahur!
+            </p>
+            <p className="text-[11px] text-amber-200/80">
+              Easter egg unlocked! Stays until you sign out.
+            </p>
           </div>
         </div>
       )}
