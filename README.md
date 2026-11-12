@@ -24,14 +24,20 @@ Return rule: only for `delivered` orders, within `products.return_window_days` o
 
 ```
 app/
-  page.tsx               Home page: agent chat
+  page.tsx               Support Chat (agent)
+  orders/page.tsx        My Orders
+  returns/page.tsx       My Returns + support tickets
   login/page.tsx         Passcode page
   api/agent/route.ts     POST /api/agent: runs the agent
+  api/orders, api/returns  Read-only APIs for the pages
   api/health/route.ts    Shows which settings are missing
 components/
   AgentChat.tsx          Chat UI that shows tool calls
 lib/
-  agent/tools.ts         The agent tools (defineTool + Zod)
+  agent/tools.ts         getMyOrders, getOrderDetails, checkReturnEligibility,
+                         createReturnRequest (writes), escalateToHuman (writes)
+  support.ts             Return-policy check and order helpers (rules live in code)
+  currentUser.ts         Logged-in customer id (C001)
   agent/systemPrompt.ts  Instructions for Gemini
   agent/runAgent.ts      The agent loop (max 5 rounds)
   agent/defineTool.ts    Turns Zod schemas into Gemini tool declarations

@@ -7,8 +7,8 @@ type Message = { role: "user" | "model"; text: string; steps?: AgentStep[] };
 
 const SAMPLE_PROMPTS = [
   "Where is my order 1003?",
-  "I want to return the item from order 1007.",
-  "Show my open support tickets.",
+  "I want to return the shoes from my last order, they are too small.",
+  "My order is 4 days late and nobody is answering.",
 ];
 
 export default function AgentChat({ onDataChanged }: { onDataChanged?: () => void }) {
