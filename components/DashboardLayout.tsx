@@ -64,7 +64,9 @@ export default function DashboardLayout({
   const { theme, setTheme } = useTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const compact = collapsed && !hovered && !mobileOpen;
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -78,10 +80,8 @@ export default function DashboardLayout({
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("velora_sidebar_collapsed");
-    if (saved !== null) {
-      setCollapsed(saved === "true");
-    }
+    const saved = localStorage.getItem("velora_sidebar_pinned");
+    if (saved === "true") setCollapsed(false);
   }, []);
 
   const handleThemeIconClick = () => {
@@ -107,7 +107,7 @@ export default function DashboardLayout({
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("velora_sidebar_collapsed", String(next));
+      localStorage.setItem("velora_sidebar_pinned", String(!next));
       return next;
     });
   };
@@ -165,9 +165,18 @@ export default function DashboardLayout({
       )}
 
       {/* Sidebar Navigation */}
+      {/* Spacer reserves layout width so hover-expansion overlays content */}
+      <div
+        aria-hidden
+        className={`hidden md:block shrink-0 transition-all duration-200 ${
+          collapsed ? "w-16" : "w-72"
+        }`}
+      />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-200 md:static ${
-          collapsed ? "md:w-16" : "md:w-72"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-200 ${
+          compact ? "md:w-16" : "md:w-72"
         } w-72 ${
           theme === "tung"
             ? "border-amber-900/40 bg-zinc-950/90 backdrop-blur-md text-amber-100"
@@ -181,7 +190,7 @@ export default function DashboardLayout({
         {/* Clean Logo Header Space */}
         <div
           className={`flex h-16 items-center px-4 border-b transition-all ${
-            collapsed ? "justify-center" : "justify-between"
+            compact ? "justify-center" : "justify-between"
           } ${
             theme === "tung"
               ? "border-amber-900/40 bg-zinc-950/60"
@@ -193,7 +202,7 @@ export default function DashboardLayout({
           }`}
         >
           <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
-            <BrandLogo collapsed={collapsed} />
+            <BrandLogo collapsed={compact} />
           </Link>
 
           <button
@@ -206,7 +215,7 @@ export default function DashboardLayout({
 
         {/* Navigation Links (Clean: Badges removed) */}
         <div className="flex-1 overflow-y-auto px-2.5 py-4">
-          {!collapsed && (
+          {!compact && (
             <div className="mb-2 px-3 text-[10px] font-semibold tracking-wider opacity-40 uppercase">
               Menu
             </div>
@@ -220,9 +229,9 @@ export default function DashboardLayout({
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  title={collapsed ? item.label : undefined}
+                  title={compact ? item.label : undefined}
                   className={`group flex items-center rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                    collapsed ? "justify-center p-2.5" : "px-3 py-2.5"
+                    compact ? "justify-center p-2.5" : "px-3 py-2.5"
                   } ${
                     active
                       ? theme === "gradient"
@@ -243,7 +252,7 @@ export default function DashboardLayout({
                           : "opacity-60 group-hover:opacity-100"
                       }`}
                     />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!compact && <span>{item.label}</span>}
                   </div>
                 </Link>
               );
@@ -279,7 +288,7 @@ export default function DashboardLayout({
                 }
               }}
               className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/80 opacity-80 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all shadow-2xs"
-              title={collapsed ? "Expand sidebar" : "Minimize sidebar"}
+              title={collapsed ? "Pin sidebar open" : "Unpin sidebar"}
               aria-label="Toggle sidebar"
             >
               <PanelLeft className="h-4 w-4" />
