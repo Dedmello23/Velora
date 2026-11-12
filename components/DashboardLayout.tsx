@@ -425,7 +425,12 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content Body */}
-        <main key={pathname} className="animate-in fade-in-50 duration-200 flex-1 flex flex-col p-2 sm:p-4 md:p-8 max-w-5xl w-full mx-auto min-h-0">
+        <main
+          key={pathname}
+          className={`animate-in fade-in-50 duration-200 flex min-h-0 flex-1 flex-col ${
+            pathname === "/" ? "" : "p-2 sm:p-4 md:p-8 max-w-5xl w-full mx-auto"
+          }`}
+        >
           {children}
         </main>
       </div>
