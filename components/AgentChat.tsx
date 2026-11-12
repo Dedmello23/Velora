@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AgentResult, AgentStep } from "@/lib/agent/types";
+import type { AgentEvent, AgentStep } from "@/lib/agent/types";
+import { statusFor } from "./agentStatus";
 import {
   Send,
   Bot,
@@ -28,11 +29,12 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, status]);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -42,20 +44,53 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
     setInput("");
     setLoading(true);
     setError("");
+    setStatus("Reading your request");
+    const push = (event: AgentEvent) => setStatus((prev) => statusFor(event) ?? prev);
 
     try {
       const res = await fetch("/api/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-agent-stream": "1" },
+        // Only the last 20 messages are sent, to keep requests small.
         body: JSON.stringify({
           messages: next.slice(-20).map(({ role, text }) => ({ role, text })),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Request failed");
-      const result = data as AgentResult;
-      setMessages([...next, { role: "model", text: result.reply, steps: result.steps }]);
-      if (result.steps.some((s) => s.writes && s.ok)) onDataChanged?.();
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Request failed");
+      }
+
+      // The server sends one JSON event per line while the agent runs; the last one is "result" or "error".
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: AgentEvent | null = null;
+      const handleLine = (line: string) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line) as AgentEvent;
+        push(event);
+        if (event.type === "result" || event.type === "error") final = event;
+      };
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        lines.forEach(handleLine);
+      }
+      handleLine(buffer);
+
+      const end = final as AgentEvent | null;
+      if (!end) {
+        push({ type: "error", message: "The connection ended before the agent finished.", status: 500 });
+        throw new Error("The connection ended before the agent finished.");
+      }
+      if (end.type === "error") throw new Error(end.message);
+      if (end.type !== "result") throw new Error("Unexpected response");
+      setMessages([...next, { role: "model", text: end.reply, steps: end.steps }]);
+      if (end.steps.some((s) => s.writes && s.ok)) onDataChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -76,7 +111,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
               ShopEase Assistant
             </h2>
             <p className="text-[10px] text-zinc-400 hidden sm:block">
-              Gemini function calling & verification
+              Groq function calling & verification
             </p>
           </div>
         </div>
@@ -181,7 +216,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
             </div>
             <div className="flex items-center gap-2 rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3.5 py-2 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-200/50 dark:border-zinc-700/50">
               <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-zinc-400" />
-              <span>Thinking & running tools...</span>
+              <span>{status || "Working on it"}...</span>
             </div>
           </div>
         )}

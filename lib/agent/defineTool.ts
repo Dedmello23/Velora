@@ -1,11 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import type { FunctionDeclaration } from "@google/genai";
 
 /**
  * One agent tool = a name + a description + a Zod schema for its arguments + the code it runs.
- * Gemini reads the name, description and schema to decide WHEN to call the tool.
- * Your code runs the tool. Gemini never touches the database directly.
+ * The model (Groq) reads the name, description and schema to decide WHEN to call the tool.
+ * Your code runs the tool. The model never touches the database directly.
  */
 export type AgentTool = {
   name: string;
@@ -32,7 +31,7 @@ export function defineTool<S extends z.ZodObject>(tool: {
   };
 }
 
-// Only these JSON Schema keys are sent to Gemini. Zod still checks everything else.
+// Only these JSON Schema keys are sent to the model. Zod still checks everything else.
 const ALLOWED_KEYS = new Set([
   "type",
   "properties",
@@ -63,11 +62,47 @@ function clean(node: unknown): unknown {
   return out;
 }
 
-/** Turns our tools into the function declarations Gemini expects. */
-export function toFunctionDeclarations(tools: AgentTool[]): FunctionDeclaration[] {
+/**
+ * Models often send null for an optional argument they do not want to set. Groq checks the model's call
+ * against this schema before our code runs and rejects null (HTTP 400, tool_use_failed). So optional
+ * properties are declared nullable here, and runAgent removes the nulls before Zod checks the rest.
+ */
+function allowNullForOptional(schema: Record<string, unknown>): Record<string, unknown> {
+  const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
+  if (!props) return schema;
+  const required = new Set((schema.required as string[] | undefined) ?? []);
+  const next: Record<string, Record<string, unknown>> = {};
+  for (const [key, prop] of Object.entries(props)) {
+    if (required.has(key)) {
+      next[key] = prop;
+      continue;
+    }
+    const type = prop.type;
+    next[key] = {
+      ...prop,
+      ...(typeof type === "string" ? { type: [type, "null"] } : {}),
+      ...(Array.isArray(prop.enum) ? { enum: [...prop.enum, null] } : {}),
+    };
+  }
+  return { ...schema, properties: next };
+}
+
+/** A tool in the OpenAI-style format that Groq's chat API expects. */
+export type ToolDefinition = {
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+
+/** Turns our tools into the tool definitions sent to Groq. */
+export function toToolDefinitions(tools: AgentTool[]): ToolDefinition[] {
   return tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    parametersJsonSchema: clean(z.toJSONSchema(tool.schema, { io: "input" })),
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: allowNullForOptional(
+        clean(z.toJSONSchema(tool.schema, { io: "input" })) as Record<string, unknown>
+      ),
+    },
   }));
 }

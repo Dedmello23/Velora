@@ -75,7 +75,7 @@ Key idea from the guide: a working agent in the chat scores more than a beautifu
 
 ### Verification so far
 - `npx tsc --noEmit` passes. `npm run build` passes (all routes compile).
-- **Not tested against live Supabase or Gemini.** No `.env.local` was available.
+- **Not tested against live Supabase or Groq.** No `.env.local` was available.
 
 ## 4. Database check against the problem statement
 
@@ -100,7 +100,7 @@ Each member has their own file with a checklist and ready-to-paste prompts for t
 | # | Role | File | Owns |
 | --- | --- | --- | --- |
 | 1 | Team Lead | [`team/01-team-lead.md`](team/01-team-lead.md) | `AGENTS.md`, `.github/copilot-instructions.md`, `README.md`, GitHub, Vercel, slides, Google Form |
-| 2 | AI / Agent | [`team/02-ai-agent.md`](team/02-ai-agent.md) | `lib/agent/`, Gemini key |
+| 2 | AI / Agent | [`team/02-ai-agent.md`](team/02-ai-agent.md) | `lib/agent/`, Groq key |
 | 3 | Backend + Database | [`team/03-backend-database.md`](team/03-backend-database.md) | Supabase, `seed/`, `lib/support.ts`, `lib/currentUser.ts`, `app/api/orders`, `app/api/returns` |
 | 4 | Frontend + QA | [`team/04-frontend-qa.md`](team/04-frontend-qa.md) | `app/` pages, `components/`, phone check, test pass, screenshots |
 
@@ -114,7 +114,7 @@ Rule: one owner per file. Need a change in someone else's file? Message the owne
 | --- | --- | --- |
 | First push to a Public GitHub repo with 3 collaborators | To do | M1 |
 | Setup: Supabase project, run `seed/ecommerce_support.sql`, share keys privately, `.env.local` | To do | M3 |
-| Gemini API key (one for the team) | To do | M2 |
+| Groq API key (one for the team, `GROQ_API_KEY`) | To do | M2 |
 | H1: `AGENTS.md` and `.github/copilot-instructions.md` (under 40 lines) | Not written | M1 |
 | H5: `MAX_ROUNDS` from 5 to 8 in `lib/agent/runAgent.ts` | Not done | M2 |
 | H5: test an unclear request and an off-topic one | To do | M4 (fix: M2) |
@@ -155,17 +155,17 @@ After each write, open `/returns` and confirm the new row appears within 5 secon
 
 | Question | Answer |
 | --- | --- |
-| How does the agent decide what to do? | Gemini reads the tool descriptions and picks a tool; our code runs it |
+| How does the agent decide what to do? | The Groq model reads the tool descriptions and picks a tool; our code runs it |
 | What stops the AI from breaking your rules? | The write tool checks the rule in code before changing data (`lib/support.ts`) |
 | Why don't you pass the user id to the tool? | So the user cannot act as someone else; the server decides who is logged in |
-| What does Zod do here? | Checks the arguments Gemini sends before the tool runs |
+| What does Zod do here? | Checks the arguments the model sends before the tool runs |
 | Where are your keys? | In `.env.local` and Vercel settings only, never in GitHub |
 | Who wrote this part? | The member who owns it explains it, even if AI helped write it |
 
 ## 9. Rules to remember
 
 - Never commit `.env.local`. Never use `SUPABASE_SECRET_KEY` in frontend code (only `lib/` and `app/api/`).
-- Do not change the core stack: Next.js, React, TypeScript, Tailwind, Supabase, Gemini function calling, Zod, Vercel.
+- Do not change the core stack: Next.js, React, TypeScript, Tailwind, Supabase, Groq function calling (openai/gpt-oss-120b), Zod, Vercel.
 - Run `npm run build` before every push.
 - No keys, passwords or the Supabase dashboard in screenshots.
 - Check `/api/health` to see which env variables are missing (it never shows values).

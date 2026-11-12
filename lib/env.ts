@@ -14,4 +14,5 @@ export function requireEnv(name: string): string {
   return value.trim();
 }
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+/** Groq model used by the agent. Override with GROQ_MODEL (for example llama-3.3-70b-versatile). */
+export const GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b";
