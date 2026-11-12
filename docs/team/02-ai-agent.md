@@ -3,16 +3,16 @@
 **Name:** ______  **Handbook prompts:** H3, H4, H5 · **Back to:** [team plan](README.md)
 
 ## You own
-Everything in `lib/agent/`: `tools.ts`, `systemPrompt.ts`, `runAgent.ts`, `defineTool.ts`, `types.ts`. Also the team's **Gemini API key** (Google AI Studio → Get API key; one key for the team).
+Everything in `lib/agent/`: `tools.ts`, `systemPrompt.ts`, `runAgent.ts`, `defineTool.ts`, `types.ts`. Also the team's **Groq API key** (console.groq.com → API Keys; one key for the team, set as `GROQ_API_KEY`; model via optional `GROQ_MODEL`, default `openai/gpt-oss-120b`).
 Do **not** edit `lib/support.ts` (Member 3) or `app/`, `components/` (Member 4). If a rule needs to change, ask Member 3.
 
 ## Where things stand
-The 5 tools, the system prompt and the return rule already exist and compile (`npm run build` passes) but have **never run against Gemini**. Your job is to make them work for real and tune the behaviour.
+The 5 tools, the system prompt and the return rule already exist and compile (`npm run build` passes) but have **never run against Groq**. Your job is to make them work for real and tune the behaviour.
 
 ## Checklist
 
-- [ ] **T1.** `git pull`, put the Gemini key in `.env.local`, `npm run dev`, log in.
-- [ ] **T2. By 12:30: a tool works in chat.** Send "Where is my order 1003?" and click the grey tool box to see the arguments Gemini chose. Tell the mentor if it does not work before lunch.
+- [ ] **T1.** `git pull`, put the Groq key (`GROQ_API_KEY`) in `.env.local`, `npm run dev`, log in.
+- [ ] **T2. By 12:30: a tool works in chat.** Send "Where is my order 1003?" and click the grey tool box to see the arguments the model chose. Tell the mentor if it does not work before lunch.
 - [ ] **T3. MAX_ROUNDS 5 → 8** (a return needs about 4 tool calls). Prompt below.
 - [ ] **T4. Run the 3 demo prompts** and fix whatever fails (prompt below).
 - [ ] **T5. Refusal tuning (H8 with M4).** Fix any test M4 reports as not refused.
