@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentEvent, AgentStep } from "@/lib/agent/types";
 import { statusFor } from "./agentStatus";
+import ReplyText from "./ReplyText";
 import {
   Send,
   Bot,
   User,
-  Sparkles,
+  Zap,
   ChevronDown,
   ChevronRight,
   Database,
@@ -127,8 +128,8 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
               <span>Reset</span>
             </button>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-white shadow-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
             Live
           </span>
         </div>
@@ -138,8 +139,8 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
       <div className="flex-1 space-y-3.5 overflow-y-auto p-3 sm:p-5 break-words min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full max-w-sm mx-auto text-center py-4">
-            <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 mb-2.5 shadow-2xs">
-              <Sparkles className="h-5 w-5 text-amber-500" />
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 mb-2.5 shadow-2xs border border-orange-200/80 dark:border-orange-500/30">
+              <Zap className="h-5 w-5 fill-current" />
             </div>
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm sm:text-base">
               How can we assist you?
@@ -203,7 +204,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
                     : "bg-zinc-100/90 dark:bg-zinc-800/90 text-zinc-800 dark:text-zinc-100 border border-zinc-200/50 dark:border-zinc-700/50 rounded-tl-xs whitespace-pre-wrap"
                 }`}
               >
-                {m.text}
+                {m.role === "model" ? <ReplyText text={m.text} /> : m.text}
               </div>
             </div>
           </div>
@@ -234,7 +235,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
       {/* Suggested Quick Prompt Chips (Zero scrollbar, clean momentum touch) */}
       <div className="flex items-center gap-1.5 overflow-x-auto border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/70 px-3 py-1.5 text-xs shrink-0">
         <span className="flex items-center gap-1 font-semibold text-zinc-400 text-[10px] shrink-0 uppercase tracking-wider">
-          <Sparkles className="h-2.5 w-2.5 text-amber-500" /> Quick:
+          <Zap className="h-2.5 w-2.5 text-orange-500 fill-orange-500" /> Quick:
         </span>
         {SAMPLE_PROMPTS.map((p) => (
           <button
@@ -298,14 +299,14 @@ function ToolSteps({ steps }: { steps: AgentStep[] }) {
                 <span
                   className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] sm:text-[11px] font-semibold ${
                     s.ok
-                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                      : "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-rose-600 text-white"
                   }`}
                 >
                   {s.ok ? (
-                    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-white" />
                   ) : (
-                    <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-white" />
                   )}
                   {s.ok ? "Executed" : "Failed"}
                 </span>

@@ -64,8 +64,8 @@ export default function AdminPage() {
 
   return (
     <DashboardLayout
-      title="Staff Admin Queue"
-      subtitle="Centralized management dashboard for escalated customer support tickets"
+      title="Admin Escalation Queue"
+      subtitle="Centralized dashboard for escalated customer support tickets"
     >
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-4">
         <div>
@@ -74,7 +74,7 @@ export default function AdminPage() {
             Escalation Monitor ({tickets ? filtered.length : 0})
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Real-time feed of requests requiring staff resolution
+            Real-time feed of requests requiring resolution
           </p>
         </div>
 

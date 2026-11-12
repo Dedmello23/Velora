@@ -2,13 +2,13 @@
 
 An AI support agent for an online store. Customers can track orders, request returns and raise support tickets in a chat.
 
-**Stack:** Next.js (App Router) · React · TypeScript · Tailwind CSS · Supabase PostgreSQL · Google Gemini API (function calling) · Zod · Vercel
+**Stack:** Next.js (App Router) · React · TypeScript · Tailwind CSS · Supabase PostgreSQL · Groq API (function calling) · Zod · Vercel
 
 ## Setup
 
 1. `npm install` (Node.js 20 or later).
 2. Create a Supabase project. In **SQL Editor**, run `seed/ecommerce_support.sql` (safe to re-run; it resets its own tables).
-3. Copy `.env.example` to `.env.local` and fill in the values (Supabase URL and secret key, Gemini API key, passcode settings).
+3. Copy `.env.example` to `.env.local` and fill in the values (Supabase URL and secret key, Groq API key, passcode settings).
 4. `npm run dev`, open http://localhost:3000, enter the passcode.
 5. Open `/api/health` to see which variables are missing (never their values).
 
@@ -38,9 +38,9 @@ lib/
                          createReturnRequest (writes), escalateToHuman (writes)
   support.ts             Return-policy check and order helpers (rules live in code)
   currentUser.ts         Logged-in customer id (C001)
-  agent/systemPrompt.ts  Instructions for Gemini
-  agent/runAgent.ts      The agent loop (max 5 rounds)
-  agent/defineTool.ts    Turns Zod schemas into Gemini tool declarations
+  agent/systemPrompt.ts  Instructions for Groq
+  agent/runAgent.ts      The agent loop (max 8 rounds)
+  agent/defineTool.ts    Turns Zod schemas into Groq tool declarations
   supabase.ts            Server-side Supabase client
   schemas.ts             Shared Zod schemas
 proxy.ts                 Passcode gate for every page and API

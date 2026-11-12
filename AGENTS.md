@@ -3,7 +3,7 @@
 Business user: a ShopEase customer. Logged-in user id: `C001` (Priya Raman), from `lib/currentUser.ts`.
 
 ## Stack
-- Next.js App Router, TypeScript, Tailwind, Supabase (server only, secret key), Gemini function calling, Zod. Do not change it.
+- Next.js App Router, TypeScript, Tailwind, Supabase (server only, secret key), Groq function calling, Zod. Do not change it.
 
 ## Tables (`seed/ecommerce_support.sql`)
 - `customers`: id, name, email, phone, city

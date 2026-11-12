@@ -1,12 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { Package, Truck, Calendar, ShoppingBag, ArrowUpRight } from "lucide-react";
+import {
+  Package,
+  Truck,
+  Calendar,
+  ShoppingBag,
+  ArrowUpRight,
+  Search,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+  Zap,
+  CreditCard,
+  XCircle,
+  ChevronDown,
+} from "lucide-react";
 import Link from "next/link";
 
-type Item = { product_id: string; name: string; quantity: number; unit_price: number };
+type Item = {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  return_window_days?: number;
+};
+
 type Order = {
   id: number;
   order_date: string;
@@ -22,6 +43,9 @@ type Order = {
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -46,10 +70,59 @@ export default function OrdersPage() {
     };
   }, []);
 
+  // Compute Shadboard Analytics Metrics
+  const stats = useMemo(() => {
+    if (!orders) return null;
+    const totalSpent = orders.reduce(
+      (acc, o) => acc + (o.status !== "cancelled" ? Number(o.total_amount) : 0),
+      0
+    );
+    const active = orders.filter(
+      (o) =>
+        o.status === "placed" ||
+        o.status === "shipped" ||
+        o.status === "out_for_delivery"
+    ).length;
+    const delivered = orders.filter((o) => o.status === "delivered").length;
+    const cancelled = orders.filter((o) => o.status === "cancelled").length;
+
+    return { total: orders.length, totalSpent, active, delivered, cancelled };
+  }, [orders]);
+
+  // Filter & Search Logic
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter((o) => {
+      // Status filter
+      if (filterStatus === "active") {
+        if (
+          o.status !== "placed" &&
+          o.status !== "shipped" &&
+          o.status !== "out_for_delivery"
+        )
+          return false;
+      } else if (filterStatus === "delivered") {
+        if (o.status !== "delivered") return false;
+      } else if (filterStatus === "cancelled") {
+        if (o.status !== "cancelled") return false;
+      }
+
+      // Search query
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const matchId = String(o.id).includes(q);
+      const matchTracking = o.tracking_number?.toLowerCase().includes(q) ?? false;
+      const matchCourier = o.courier?.toLowerCase().includes(q) ?? false;
+      const matchItems = o.items.some((i) => i.name.toLowerCase().includes(q));
+
+      return matchId || matchTracking || matchCourier || matchItems;
+    });
+  }, [orders, filterStatus, searchQuery]);
+
   return (
     <DashboardLayout
-      title="My Orders"
-      subtitle="View current shipment status, purchase breakdown, and delivery records"
+      title="Orders Analytics"
+      subtitle="Real-time shipment telemetry, item breakdowns, and purchase tracking"
     >
       {error && (
         <div className="mb-6 rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 text-sm text-rose-700 dark:text-rose-300 shadow-2xs">
@@ -57,145 +130,240 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* 1. Search & Filter Bar */}
+      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {[
+            { id: "all", label: "All Orders", count: stats?.total },
+            { id: "active", label: "In Transit", count: stats?.active },
+            { id: "delivered", label: "Delivered", count: stats?.delivered },
+            { id: "cancelled", label: "Cancelled", count: stats?.cancelled },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setFilterStatus(tab.id)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all min-h-[36px] ${
+                filterStatus === tab.id
+                  ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-2xs"
+                  : "bg-white dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {tab.label}
+              {tab.count !== undefined && (
+                <span className="ml-1.5 text-[10px] opacity-70">({tab.count})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Search Input */}
+        <div className="relative min-w-[200px] sm:min-w-[240px]">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search order #, item, tracking..."
+            className="w-full rounded-xl border border-zinc-300/80 dark:border-zinc-700 bg-white dark:bg-zinc-800/90 px-3.5 py-1.5 pl-9 text-xs text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-zinc-300 transition-all min-h-[36px]"
+          />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-2 text-zinc-400 hover:text-zinc-600 text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Loading Skeleton */}
       {!orders && !error && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {[1, 2, 3].map((n) => (
             <div
               key={n}
-              className="animate-pulse rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 space-y-4 shadow-2xs"
+              className="animate-pulse rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-3 shadow-2xs"
             >
               <div className="flex justify-between items-center">
                 <div className="h-5 w-32 bg-zinc-200 dark:bg-zinc-800 rounded-lg" />
-                <div className="h-6 w-20 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
+                <div className="h-5 w-20 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
               </div>
-              <div className="h-4 w-56 bg-zinc-100 dark:bg-zinc-800 rounded-md" />
-              <div className="space-y-2 pt-2">
-                <div className="h-4 w-full bg-zinc-50 dark:bg-zinc-800 rounded" />
-                <div className="h-4 w-4/5 bg-zinc-50 dark:bg-zinc-800 rounded" />
-              </div>
+              <div className="h-4 w-48 bg-zinc-100 dark:bg-zinc-800 rounded-md" />
+              <div className="h-10 w-full bg-zinc-50 dark:bg-zinc-800 rounded-lg" />
             </div>
           ))}
         </div>
       )}
 
       {/* Empty State */}
-      {orders && orders.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 text-center shadow-2xs">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 mb-3">
-            <ShoppingBag className="h-6 w-6" />
+      {orders && filteredOrders.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-10 text-center shadow-2xs animate-in fade-in-50 duration-200">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 mb-2">
+            <XCircle className="h-5 w-5" />
           </div>
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">No orders placed yet</h3>
+          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+            No matching orders found
+          </h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Orders placed in ShopEase will display here automatically.
+            {searchQuery
+              ? `No records found for "${searchQuery}". Try a different keyword.`
+              : "No orders match the selected filter."}
           </p>
         </div>
       )}
 
-      {/* Orders Grid/List */}
-      <div className="space-y-4">
-        {orders?.map((o) => (
-          <div
-            key={o.id}
-            className="rounded-2xl border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-all overflow-hidden"
-          >
-            {/* Card Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-2xs">
-                  <Package className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                      Order #{o.id}
-                    </span>
-                    <StatusBadge value={o.status} />
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-zinc-500 mt-0.5">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-zinc-400" />
-                      Placed {o.order_date}
-                    </span>
-                  </div>
-                </div>
-              </div>
+      {/* 3. Modern Shadboard Orders List with Smooth Animation */}
+      <div className="space-y-3">
+        {filteredOrders.map((o, idx) => {
+          const isExpanded = expandedId === o.id;
+          const isLate =
+            (o.status === "shipped" || o.status === "placed" || o.status === "out_for_delivery") &&
+            o.expected_delivery &&
+            new Date(o.expected_delivery) < new Date();
 
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-semibold text-zinc-400 block tracking-wider">
-                  Total
-                </span>
-                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  ₹{Number(o.total_amount).toLocaleString("en-IN")}
-                </span>
-              </div>
-            </div>
-
-            {/* Shipment / Tracking Banner */}
-            <div className="px-5 py-3 bg-zinc-50/20 dark:bg-zinc-800/20 border-b border-zinc-100 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Truck className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-                <span>
-                  {o.delivered_date ? (
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                      Delivered on {o.delivered_date}
-                    </span>
-                  ) : o.expected_delivery ? (
-                    <span>Expected delivery by {o.expected_delivery}</span>
-                  ) : (
-                    <span>Shipment in progress</span>
-                  )}
-                </span>
-              </div>
-
-              {o.tracking_number && (
-                <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 bg-zinc-100/70 dark:bg-zinc-800 px-2 py-0.5 rounded-md break-all">
-                  {o.courier ? `${o.courier} · ` : ""}
-                  {o.tracking_number}
-                </div>
-              )}
-            </div>
-
-            {/* Items List */}
-            <div className="p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                Items ({o.items.length})
-              </div>
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {o.items.map((i) => (
-                  <li
-                    key={i.product_id}
-                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-semibold text-zinc-500 shrink-0">
-                        ×{i.quantity}
+          return (
+            <div
+              key={o.id}
+              style={{ animationDelay: `${idx * 40}ms` }}
+              className="group rounded-2xl border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md transition-all duration-200 overflow-hidden animate-in fade-in-50 slide-in-from-bottom-2"
+            >
+              {/* Card Header Row */}
+              <div className="p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 shadow-2xs group-hover:bg-zinc-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-zinc-900 transition-colors">
+                      <Package className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-zinc-900 dark:text-white tracking-tight">
+                          Order #{o.id}
+                        </span>
+                        <StatusBadge value={o.status} />
+                        {isLate && (
+                          <span className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-2xs">
+                            LATE
+                          </span>
+                        )}
                       </div>
-                      <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
-                        {i.name}
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Placed {o.order_date}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Price & Expand button */}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-semibold text-zinc-400 block tracking-wider">
+                        Amount
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-white">
+                        ₹{Number(o.total_amount).toLocaleString("en-IN")}
                       </span>
                     </div>
 
-                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 shrink-0">
-                      ₹{(i.unit_price * i.quantity).toLocaleString("en-IN")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                      className="rounded-xl p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title={isExpanded ? "Collapse" : "Expand items"}
+                    >
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Card Action Footer */}
-            <div className="flex items-center justify-end border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-800/30 px-5 py-2.5">
-              <Link
-                href={`/?q=Where+is+my+order+${o.id}`}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors"
-              >
-                <span>Ask AI Agent about this order</span>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
+                {/* Delivery & Tracking Telemetry Bar */}
+                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 p-2.5 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                    <span>
+                      {o.delivered_date ? (
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                          ✓ Delivered on {o.delivered_date}
+                        </span>
+                      ) : o.expected_delivery ? (
+                        <span>
+                          Expected delivery:{" "}
+                          <strong className="text-zinc-900 dark:text-white">
+                            {o.expected_delivery}
+                          </strong>
+                        </span>
+                      ) : (
+                        <span>Order processed</span>
+                      )}
+                    </span>
+                  </div>
+
+                  {o.tracking_number && (
+                    <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-800 px-2.5 py-0.5 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
+                      {o.courier ? <span className="font-sans font-semibold mr-1">{o.courier}:</span> : ""}
+                      <span className="break-all">{o.tracking_number}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Items Preview (Collapsible) */}
+                <div className={`mt-3 space-y-1.5 ${isExpanded ? "block" : "hidden sm:block"}`}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex justify-between">
+                    <span>Products ({o.items.length})</span>
+                    <span className="hidden sm:inline">Price</span>
+                  </div>
+
+                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
+                    {o.items.map((i) => (
+                      <div
+                        key={i.product_id}
+                        className="flex items-center justify-between py-1.5 text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="h-5 min-w-[20px] rounded-md bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500">
+                            {i.quantity}
+                          </span>
+                          <span className="font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                            {i.name}
+                          </span>
+                          {i.return_window_days !== undefined && (
+                            <span className="hidden md:inline text-[10px] text-zinc-400">
+                              ({i.return_window_days}d window)
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100 shrink-0">
+                          ₹{(i.unit_price * i.quantity).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Action Footer */}
+              <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30 px-4 py-2.5 text-xs">
+                <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-orange-500 fill-orange-500" />
+                  Instant Groq actions supported
+                </span>
+
+                <Link
+                  href={`/?q=Where+is+my+order+${o.id}`}
+                  className="inline-flex items-center gap-1.5 font-bold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors group/link"
+                >
+                  <span>Query with Agent</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+                </Link>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </DashboardLayout>
   );

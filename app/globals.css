@@ -29,3 +29,21 @@ body {
   background: radial-gradient(circle at top left, #1e1b4b, #09090b 60%, #030712 100%);
   color: #f4f4f5;
 }
+
+.theme-og body {
+  background-color: #0d1117;
+  background-image: linear-gradient(to bottom, rgba(13, 17, 23, 0.70), rgba(13, 17, 23, 0.88)), url('/theme-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  color: #f8fafc;
+}
+
+.theme-tung body {
+  background-color: #120e0b;
+  background-image: linear-gradient(to right, rgba(18, 14, 11, 0.90) 0%, rgba(18, 14, 11, 0.75) 55%, rgba(18, 14, 11, 0.35) 100%), url('/tung-wallpaper.jpg');
+  background-size: cover;
+  background-position: right center;
+  background-attachment: fixed;
+  color: #fef3c7;
+}
