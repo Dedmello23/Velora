@@ -6,6 +6,7 @@ import type { ChatMessage } from "../schemas";
 import { tools } from "./tools";
 import { toToolDefinitions } from "./defineTool";
 import { buildSystemPrompt } from "./systemPrompt";
+import { toPlainText } from "./format";
 import type { AgentEvent, AgentResult, AgentStep } from "./types";
 
 /** Stops the agent from looping forever and using up your Groq quota. A return needs about 4 tool calls. */
@@ -44,7 +45,7 @@ export async function runAgent(
 
     // No tool requested: this is the final answer.
     if (calls.length === 0) {
-      return { reply: message?.content?.trim() || "Sorry, I could not answer that.", steps };
+      return { reply: toPlainText(message?.content ?? "") || "Sorry, I could not answer that.", steps };
     }
 
     // Keep the model's own turn (it carries the tool request) in the history.
