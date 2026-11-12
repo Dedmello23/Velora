@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-import StatusBadge from "@/components/StatusBadge";
-import { RotateCcw, AlertCircle, Clock, ShoppingBag } from "lucide-react";
+import {
+  CardSkeleton,
+  EmptyState,
+  FilterTabs,
+  Notice,
+  PageHeading,
+  ProgressSteps,
+  StatusChip,
+  fmtDateTime,
+} from "@/components/ui";
+import { RotateCcw, LifeBuoy, XCircle } from "lucide-react";
 
 type Return = {
   id: number;
@@ -23,13 +31,32 @@ type Ticket = {
   created_at: string;
 };
 
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+type Tab = "all" | "returns" | "tickets";
+
+const RETURN_STEPS = ["Requested", "Approved", "Picked up", "Refunded"];
+const RETURN_INDEX: Record<string, number> = { requested: 0, approved: 1, picked_up: 2, refunded: 3 };
+
+const TILE_TONES = [
+  "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+];
+
+function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-zinc-400">
+      {icon}
+      {children}
+    </h2>
+  );
+}
 
 export default function ReturnsPage() {
   const [data, setData] = useState<{ returns: Return[]; tickets: Ticket[] } | null>(null);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "returns" | "tickets">("all");
+  const [activeTab, setActiveTab] = useState<Tab>("all");
 
   useEffect(() => {
     let alive = true;
@@ -54,181 +81,141 @@ export default function ReturnsPage() {
     };
   }, []);
 
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "all", label: "All", count: data ? data.returns.length + data.tickets.length : undefined },
+    { id: "returns", label: "Returns", count: data?.returns.length },
+    { id: "tickets", label: "Tickets", count: data?.tickets.length },
+  ];
+
   return (
-    <DashboardLayout
-      title="Returns & Support Tickets"
-      subtitle="Track your replacement and return submissions alongside human support escalations"
-    >
-      {error && (
-        <div className="mb-6 rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 text-sm text-rose-700 dark:text-rose-300 shadow-2xs">
-          ⚠️ {error}
-        </div>
-      )}
+    <>
+      <div className="mx-auto w-full max-w-5xl">
+        <PageHeading title="Returns & tickets" hint="Updates automatically" />
 
-      {/* Filter Tabs */}
-      <div className="mb-6 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-        <div className="flex items-center gap-2">
-          {(["all", "returns", "tickets"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold capitalize transition-all min-h-[36px] ${
-                activeTab === tab
-                  ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-2xs"
-                  : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-              }`}
-            >
-              {tab === "all" ? "All Activity" : tab}
-              {data && (
-                <span className="ml-1.5 text-[10px] opacity-70">
-                  ({tab === "all"
-                    ? data.returns.length + data.tickets.length
-                    : tab === "returns"
-                    ? data.returns.length
-                    : data.tickets.length})
-                </span>
-              )}
-            </button>
-          ))}
+        {error && <Notice>{error}</Notice>}
+
+        <div className="mt-4">
+          <FilterTabs tabs={tabs} value={activeTab} onChange={setActiveTab} />
         </div>
 
-        <span className="text-[11px] text-zinc-400 font-medium hidden sm:inline">
-          Live refresh every 5s
-        </span>
+        {!data && !error && (
+          <div className="mt-4">
+            <CardSkeleton count={2} />
+          </div>
+        )}
+
+        {data && (
+          <div className="mt-5 space-y-7">
+            {(activeTab === "all" || activeTab === "returns") && (
+              <section>
+                <SectionTitle icon={<RotateCcw />}>Returns</SectionTitle>
+                {data.returns.length === 0 ? (
+                  <EmptyState icon={<RotateCcw />} title="No returns yet">
+                    Ask the support agent to start a return for any eligible delivered item.
+                  </EmptyState>
+                ) : (
+                  <div className="space-y-3">
+                    {data.returns.map((r) => {
+                      const rejected = r.status === "rejected";
+                      return (
+                        <article
+                          key={r.id}
+                          className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+                        >
+                          <header className="flex items-center gap-3 px-4 pt-3.5 sm:px-5">
+                            <div
+                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold ${
+                                TILE_TONES[r.id % TILE_TONES.length]
+                              }`}
+                              aria-hidden
+                            >
+                              {r.product_name.charAt(0)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                                {r.product_name}
+                              </h3>
+                              <p className="mt-0.5 text-xs text-zinc-500">
+                                Return #{r.id} · Order #{r.order_id}
+                              </p>
+                            </div>
+                            <StatusChip value={r.status} />
+                          </header>
+
+                          <div className="mt-3 px-4 sm:px-5">
+                            {rejected ? (
+                              <p className="flex items-center gap-1.5 text-[13px] text-zinc-500">
+                                <XCircle className="h-4 w-4 shrink-0 text-rose-500" />
+                                This return request was not approved
+                              </p>
+                            ) : (
+                              <ProgressSteps steps={RETURN_STEPS} current={RETURN_INDEX[r.status] ?? 0} />
+                            )}
+                          </div>
+
+                          <div className="mx-4 mt-3 border-t border-zinc-100 py-3 dark:border-zinc-800 sm:mx-5">
+                            <p className="text-[11px] uppercase tracking-wide text-zinc-400">Reason</p>
+                            <p className="mt-1 text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300">
+                              {r.reason}
+                            </p>
+                          </div>
+
+                          <footer className="border-t border-zinc-100 bg-zinc-50/70 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/30 sm:px-5">
+                            Requested {fmtDateTime(r.created_at)}
+                          </footer>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {(activeTab === "all" || activeTab === "tickets") && (
+              <section>
+                <SectionTitle icon={<LifeBuoy />}>Support tickets</SectionTitle>
+                {data.tickets.length === 0 ? (
+                  <EmptyState icon={<LifeBuoy />} title="No support tickets">
+                    Issues the agent escalates to our team will show up here.
+                  </EmptyState>
+                ) : (
+                  <div className="space-y-3">
+                    {data.tickets.map((t) => (
+                      <article
+                        key={t.id}
+                        className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+                      >
+                        <header className="flex items-start justify-between gap-3 px-4 pt-3.5 sm:px-5">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
+                              Ticket #{t.id}
+                            </h3>
+                            <p className="mt-0.5 text-xs text-zinc-500">
+                              {t.order_id ? `Order #${t.order_id}` : "General query"}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                            <StatusChip value={t.priority} label={`${t.priority[0].toUpperCase()}${t.priority.slice(1)} priority`} />
+                            <StatusChip value={t.status} />
+                          </div>
+                        </header>
+
+                        <p className="mx-4 mt-3 border-t border-zinc-100 py-3 text-[13px] leading-relaxed text-zinc-700 dark:border-zinc-800 dark:text-zinc-300 sm:mx-5">
+                          {t.issue}
+                        </p>
+
+                        <footer className="border-t border-zinc-100 bg-zinc-50/70 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/30 sm:px-5">
+                          Opened {fmtDateTime(t.created_at)}
+                        </footer>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Loading Skeleton */}
-      {!data && !error && (
-        <div className="space-y-4">
-          {[1, 2].map((n) => (
-            <div
-              key={n}
-              className="animate-pulse rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 space-y-3 shadow-2xs"
-            >
-              <div className="flex justify-between items-center">
-                <div className="h-4 w-40 bg-zinc-200 dark:bg-zinc-800 rounded" />
-                <div className="h-5 w-20 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-              </div>
-              <div className="h-3 w-48 bg-zinc-100 dark:bg-zinc-800 rounded" />
-              <div className="h-10 w-full bg-zinc-50 dark:bg-zinc-800 rounded" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {data && (
-        <div className="space-y-8">
-          {/* Returns Section */}
-          {(activeTab === "all" || activeTab === "returns") && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Product Returns ({data.returns.length})
-                </h2>
-              </div>
-
-              {data.returns.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 text-center text-xs text-zinc-500 shadow-2xs">
-                  No return requests active. You can request returns for eligible delivered items directly through the AI Support Agent.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.returns.map((r) => (
-                    <div
-                      key={r.id}
-                      className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-all"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100">
-                            <ShoppingBag className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100 block">
-                              {r.product_name}
-                            </span>
-                            <span className="text-[11px] text-zinc-400">
-                              Return ID #{r.id} · Linked to Order #{r.order_id}
-                            </span>
-                          </div>
-                        </div>
-
-                        <StatusBadge value={r.status} />
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
-                        <span className="flex items-center gap-1 text-[11px]">
-                          <Clock className="h-3 w-3 text-zinc-400" />
-                          Requested: {fmt(r.created_at)}
-                        </span>
-                      </div>
-
-                      <div className="mt-2.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-800/80 p-3 text-xs text-zinc-700 dark:text-zinc-300 border border-zinc-100/80 dark:border-zinc-700/80">
-                        <span className="font-semibold text-zinc-500 block mb-0.5 text-[10px] uppercase tracking-wider">
-                          Stated Reason:
-                        </span>
-                        {r.reason}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Tickets Section */}
-          {(activeTab === "all" || activeTab === "tickets") && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  Support Tickets ({data.tickets.length})
-                </h2>
-              </div>
-
-              {data.tickets.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 text-center text-xs text-zinc-500 shadow-2xs">
-                  No open support tickets. High priority or unresolved matters escalated by the agent will be catalogued here.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.tickets.map((t) => (
-                    <div
-                      key={t.id}
-                      className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-all"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
-                        <div>
-                          <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                            Ticket #{t.id}
-                          </span>
-                          <span className="text-[11px] text-zinc-400 block mt-0.5">
-                            {t.order_id ? `Referenced Order #${t.order_id} · ` : ""}
-                            Created {fmt(t.created_at)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <StatusBadge value={t.priority} />
-                          <StatusBadge value={t.status} />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 rounded-xl bg-zinc-50/80 dark:bg-zinc-800/80 p-3 text-xs text-zinc-800 dark:text-zinc-200 border border-zinc-100/80 dark:border-zinc-700/80 leading-relaxed">
-                        <span className="font-semibold text-zinc-500 block mb-0.5 text-[10px] uppercase tracking-wider">
-                          Customer Issue:
-                        </span>
-                        {t.issue}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-      )}
-    </DashboardLayout>
+    </>
   );
 }

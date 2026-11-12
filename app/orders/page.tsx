@@ -1,22 +1,20 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-import StatusBadge from "@/components/StatusBadge";
 import {
-  Package,
-  Truck,
-  Calendar,
-  ShoppingBag,
-  ArrowUpRight,
   Search,
   CheckCircle2,
-  Clock,
-  TrendingUp,
-  Zap,
-  CreditCard,
   XCircle,
   ChevronDown,
+  Copy,
+  Check,
+  X,
+  Package,
+  Truck,
+  PackageCheck,
+  RotateCcw,
+  MessageCircle,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,6 +37,124 @@ type Order = {
   tracking_number: string | null;
   items: Item[];
 };
+
+
+const STAGES = ["Placed", "Shipped", "Out for delivery", "Delivered"] as const;
+const STAGE_INDEX: Record<string, number> = {
+  placed: 0,
+  shipped: 1,
+  out_for_delivery: 2,
+  delivered: 3,
+};
+
+const CHIP: Record<string, string> = {
+  placed: "bg-zinc-100 text-zinc-700 dark:bg-zinc-700/40 dark:text-zinc-200",
+  shipped: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  out_for_delivery: "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+  delivered: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  cancelled: "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+};
+
+const TILE_TONES = [
+  "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+];
+
+function parseDay(d: string) {
+  const [y, m, day] = d.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, day));
+}
+
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "";
+  const date = parseDay(d);
+  const sameYear = date.getUTCFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+    timeZone: "UTC",
+  });
+}
+
+function returnNote(deliveredDate: string | null, windowDays?: number) {
+  if (!deliveredDate || windowDays === undefined) return null;
+  if (windowDays <= 0) return { text: "Not returnable", tone: "muted" as const };
+  const until = parseDay(deliveredDate);
+  until.setUTCDate(until.getUTCDate() + windowDays);
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const label = until.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  return until.getTime() >= todayUtc
+    ? { text: `Return eligible until ${label}`, tone: "ok" as const }
+    : { text: `Return window closed ${label}`, tone: "muted" as const };
+}
+
+/** Deep link into the support agent with a pre-written question. */
+const agentLink = (q: string) => `/?q=${encodeURIComponent(q)}`;
+
+function helpPrompt(o: { id: number; status: string }, isLate: boolean) {
+  if (o.status === "cancelled") return `Order ${o.id} was cancelled. When will I get my refund?`;
+  if (isLate) return `My order ${o.id} is late. Can you help?`;
+  return `I need help with order ${o.id}.`;
+}
+
+function statusLabel(s: string) {
+  return s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {}
+      }}
+      aria-label="Copy tracking number"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-200/70 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+function Stepper({ status }: { status: string }) {
+  const current = STAGE_INDEX[status] ?? 0;
+  return (
+    <ol className="grid grid-cols-4 gap-1.5" aria-label="Delivery progress">
+      {STAGES.map((label, i) => (
+        <li key={label}>
+          <span
+            className={`block h-1 rounded-full ${
+              i <= current ? "bg-emerald-500" : "bg-zinc-200 dark:bg-zinc-700"
+            }`}
+          />
+          <span
+            className={`mt-1.5 block truncate text-[11px] leading-none ${
+              i === current
+                ? "font-semibold text-zinc-900 dark:text-white"
+                : "text-zinc-400 dark:text-zinc-500"
+            }`}
+          >
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -119,252 +235,297 @@ export default function OrdersPage() {
     });
   }, [orders, filterStatus, searchQuery]);
 
+  const FILTERS = [
+    { id: "all", label: "All", count: stats?.total },
+    { id: "active", label: "In transit", count: stats?.active },
+    { id: "delivered", label: "Delivered", count: stats?.delivered },
+    { id: "cancelled", label: "Cancelled", count: stats?.cancelled },
+  ];
+
   return (
-    <DashboardLayout
-      title="Orders Analytics"
-      subtitle="Real-time shipment telemetry, item breakdowns, and purchase tracking"
-    >
-      {error && (
-        <div className="mb-6 rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 text-sm text-rose-700 dark:text-rose-300 shadow-2xs">
-          ⚠️ {error}
-        </div>
-      )}
+    <>
+      <div className="mx-auto w-full max-w-5xl">
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-white">
+          Your orders
+        </h1>
 
-      {/* 1. Search & Filter Bar */}
-      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {[
-            { id: "all", label: "All Orders", count: stats?.total },
-            { id: "active", label: "In Transit", count: stats?.active },
-            { id: "delivered", label: "Delivered", count: stats?.delivered },
-            { id: "cancelled", label: "Cancelled", count: stats?.cancelled },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterStatus(tab.id)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all min-h-[36px] ${
-                filterStatus === tab.id
-                  ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-2xs"
-                  : "bg-white dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-              }`}
-            >
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className="ml-1.5 text-[10px] opacity-70">({tab.count})</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {error && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
 
-        {/* Search Input */}
-        <div className="relative min-w-[200px] sm:min-w-[240px]">
+        {/* Toolbar: stacked on mobile, single row on desktop */}
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row-reverse lg:items-center lg:justify-between">
+        {/* Search */}
+        <div className="relative lg:w-80">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search order #, item, tracking..."
-            className="w-full rounded-xl border border-zinc-300/80 dark:border-zinc-700 bg-white dark:bg-zinc-800/90 px-3.5 py-1.5 pl-9 text-xs text-zinc-900 dark:text-zinc-100 outline-none placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-zinc-300 transition-all min-h-[36px]"
+            placeholder="Search by order #, product or tracking ID"
+            className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-10 pr-10 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-300"
           />
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-2 text-zinc-400 hover:text-zinc-600 text-xs"
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
-      </div>
 
-      {/* Loading Skeleton */}
-      {!orders && !error && (
-        <div className="space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div
-              key={n}
-              className="animate-pulse rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-3 shadow-2xs"
-            >
-              <div className="flex justify-between items-center">
-                <div className="h-5 w-32 bg-zinc-200 dark:bg-zinc-800 rounded-lg" />
-                <div className="h-5 w-20 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-              </div>
-              <div className="h-4 w-48 bg-zinc-100 dark:bg-zinc-800 rounded-md" />
-              <div className="h-10 w-full bg-zinc-50 dark:bg-zinc-800 rounded-lg" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {orders && filteredOrders.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-10 text-center shadow-2xs animate-in fade-in-50 duration-200">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 mb-2">
-            <XCircle className="h-5 w-5" />
+        {/* Filter tabs */}
+        <div className="-mx-2 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0">
+          <div role="tablist" className="flex min-w-max gap-2">
+            {FILTERS.map((tab) => {
+              const on = filterStatus === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setFilterStatus(tab.id)}
+                  className={`h-8 whitespace-nowrap rounded-full border px-3.5 text-xs font-medium transition-colors ${
+                    on
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900"
+                      : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500"
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span className={`ml-1.5 text-xs ${on ? "opacity-70" : "text-zinc-400"}`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
-            No matching orders found
-          </h3>
-          <p className="mt-1 text-xs text-zinc-500">
-            {searchQuery
-              ? `No records found for "${searchQuery}". Try a different keyword.`
-              : "No orders match the selected filter."}
-          </p>
         </div>
-      )}
 
-      {/* 3. Modern Shadboard Orders List with Smooth Animation */}
-      <div className="space-y-3">
-        {filteredOrders.map((o, idx) => {
-          const isExpanded = expandedId === o.id;
-          const isLate =
-            (o.status === "shipped" || o.status === "placed" || o.status === "out_for_delivery") &&
-            o.expected_delivery &&
-            new Date(o.expected_delivery) < new Date();
+        </div>
 
-          return (
-            <div
-              key={o.id}
-              style={{ animationDelay: `${idx * 40}ms` }}
-              className="group rounded-2xl border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md transition-all duration-200 overflow-hidden animate-in fade-in-50 slide-in-from-bottom-2"
-            >
-              {/* Card Header Row */}
-              <div className="p-4 sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 shadow-2xs group-hover:bg-zinc-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-zinc-900 transition-colors">
-                      <Package className="h-4 w-4" />
+        {/* Loading skeleton */}
+        {!orders && !error && (
+          <div className="mt-5 space-y-4">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="animate-pulse overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <div className="h-16 bg-zinc-100 dark:bg-zinc-800/60" />
+                <div className="space-y-3 p-4">
+                  <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="flex gap-3">
+                    <div className="h-16 w-16 rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+                    <div className="flex-1 space-y-2 pt-1">
+                      <div className="h-4 w-2/3 rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="h-3 w-1/3 rounded bg-zinc-100 dark:bg-zinc-800" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-zinc-900 dark:text-white tracking-tight">
-                          Order #{o.id}
-                        </span>
-                        <StatusBadge value={o.status} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {orders && filteredOrders.length === 0 && (
+          <div className="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800">
+              <Package className="h-6 w-6" />
+            </div>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              No orders found
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              {searchQuery
+                ? `Nothing matches "${searchQuery}". Try a different keyword.`
+                : "There are no orders in this view yet."}
+            </p>
+          </div>
+        )}
+
+        {/* Order cards */}
+        <div className="mt-4 space-y-3">
+          {filteredOrders.map((o) => {
+            const isExpanded = expandedId === o.id;
+            const inFlight = o.status in STAGE_INDEX && o.status !== "delivered";
+            const now = new Date();
+            const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+            const isLate =
+              inFlight &&
+              !!o.expected_delivery &&
+              parseDay(o.expected_delivery).getTime() < todayUtc;
+            const visibleItems = isExpanded ? o.items : o.items.slice(0, 2);
+            const hiddenCount = o.items.length - 2;
+            const primary =
+              "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200";
+
+            return (
+              <article
+                key={o.id}
+                className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                {/* Header: identity + status */}
+                <header className="flex items-start justify-between gap-3 px-4 pt-3.5 sm:px-5">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      Order #{o.id}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-zinc-500">Placed {fmtDate(o.order_date)}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium leading-none ${
+                      CHIP[o.status] ?? CHIP.placed
+                    }`}
+                  >
+                    {statusLabel(o.status)}
+                  </span>
+                </header>
+
+                {/* Delivery info */}
+                <div className="mt-3 space-y-2.5 px-4 sm:px-5">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    {o.status === "delivered" ? (
+                      <p className="flex items-center gap-1.5 text-[13px] font-medium text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        Delivered {fmtDate(o.delivered_date)}
+                      </p>
+                    ) : o.status === "cancelled" ? (
+                      <p className="flex items-center gap-1.5 text-[13px] text-zinc-500">
+                        <XCircle className="h-4 w-4 shrink-0 text-rose-500" />
+                        This order was cancelled
+                      </p>
+                    ) : (
+                      <p className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100">
+                        {o.expected_delivery ? `Arriving ${fmtDate(o.expected_delivery)}` : "Preparing your order"}
                         {isLate && (
-                          <span className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-2xs">
-                            LATE
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="h-3 w-3" />
+                            Delayed
                           </span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Placed {o.order_date}
-                        </span>
-                      </div>
-                    </div>
+                      </p>
+                    )}
+
+                    {o.tracking_number && (
+                      <p className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {o.courier && <span>{o.courier}</span>}
+                        <span className="font-mono text-zinc-700 dark:text-zinc-300">{o.tracking_number}</span>
+                        <CopyButton value={o.tracking_number} />
+                      </p>
+                    )}
                   </div>
 
-                  {/* Price & Expand button */}
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase font-semibold text-zinc-400 block tracking-wider">
-                        Amount
-                      </span>
-                      <span className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-white">
-                        ₹{Number(o.total_amount).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : o.id)}
-                      className="rounded-xl p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                      title={isExpanded ? "Collapse" : "Expand items"}
-                    >
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform duration-200 ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-                  </div>
+                  {inFlight && <Stepper status={o.status} />}
                 </div>
 
-                {/* Delivery & Tracking Telemetry Bar */}
-                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 p-2.5 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-                    <span>
-                      {o.delivered_date ? (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          ✓ Delivered on {o.delivered_date}
-                        </span>
-                      ) : o.expected_delivery ? (
-                        <span>
-                          Expected delivery:{" "}
-                          <strong className="text-zinc-900 dark:text-white">
-                            {o.expected_delivery}
-                          </strong>
-                        </span>
-                      ) : (
-                        <span>Order processed</span>
-                      )}
-                    </span>
-                  </div>
-
-                  {o.tracking_number && (
-                    <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-800 px-2.5 py-0.5 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
-                      {o.courier ? <span className="font-sans font-semibold mr-1">{o.courier}:</span> : ""}
-                      <span className="break-all">{o.tracking_number}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Quick Items Preview (Collapsible) */}
-                <div className={`mt-3 space-y-1.5 ${isExpanded ? "block" : "hidden sm:block"}`}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex justify-between">
-                    <span>Products ({o.items.length})</span>
-                    <span className="hidden sm:inline">Price</span>
-                  </div>
-
-                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-                    {o.items.map((i) => (
-                      <div
-                        key={i.product_id}
-                        className="flex items-center justify-between py-1.5 text-xs"
-                      >
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <span className="h-5 min-w-[20px] rounded-md bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500">
-                            {i.quantity}
-                          </span>
-                          <span className="font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                {/* Items */}
+                <ul className="mx-4 mt-3 divide-y sm:mx-5 divide-zinc-100 border-t border-zinc-100 dark:divide-zinc-800 dark:border-zinc-800">
+                  {visibleItems.map((i, n) => {
+                    const note = o.status === "delivered" ? returnNote(o.delivered_date, i.return_window_days) : null;
+                    return (
+                      <li key={i.product_id} className="flex items-center gap-3 py-2.5">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold ${
+                            TILE_TONES[(o.id + n) % TILE_TONES.length]
+                          }`}
+                          aria-hidden
+                        >
+                          {i.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-zinc-900 dark:text-zinc-100">
                             {i.name}
-                          </span>
-                          {i.return_window_days !== undefined && (
-                            <span className="hidden md:inline text-[10px] text-zinc-400">
-                              ({i.return_window_days}d window)
-                            </span>
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-zinc-500">
+                            Qty {i.quantity}
+                            {note && (
+                              <>
+                                <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
+                                <span className={note.tone === "ok" ? "text-emerald-700 dark:text-emerald-400" : ""}>
+                                  {note.text}
+                                </span>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <p className="text-[13px] font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                            ₹{(i.unit_price * i.quantity).toLocaleString("en-IN")}
+                          </p>
+                          {note?.tone === "ok" && o.items.length > 1 && (
+                            <Link
+                              href={agentLink(`I want to return the ${i.name} from order ${o.id}.`)}
+                              className="text-xs font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-white"
+                            >
+                              Return
+                            </Link>
                           )}
                         </div>
-                        <span className="font-semibold text-zinc-900 dark:text-zinc-100 shrink-0">
-                          ₹{(i.unit_price * i.quantity).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    ))}
+                      </li>
+                    );
+                  })}
+                  {hiddenCount > 0 && (
+                    <li className="py-2">
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                        className="flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                      >
+                        {isExpanded ? "Show less" : `+${hiddenCount} more item${hiddenCount > 1 ? "s" : ""}`}
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    </li>
+                  )}
+                </ul>
+
+                {/* Footer: total + actions */}
+                <footer className="flex items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/70 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-800/30 sm:px-5">
+                  <div className="leading-tight">
+                    <p className="text-[11px] text-zinc-500">Total</p>
+                    <p className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-white">
+                      ₹{Number(o.total_amount).toLocaleString("en-IN")}
+                    </p>
                   </div>
-                </div>
-              </div>
-
-              {/* Card Action Footer */}
-              <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30 px-4 py-2.5 text-xs">
-                <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                  <Zap className="h-3 w-3 text-orange-500 fill-orange-500" />
-                  Instant Groq actions supported
-                </span>
-
-                <Link
-                  href={`/?q=Where+is+my+order+${o.id}`}
-                  className="inline-flex items-center gap-1.5 font-bold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors group/link"
-                >
-                  <span>Query with Agent</span>
-                  <ArrowUpRight className="h-3.5 w-3.5 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
-                </Link>
-              </div>
-            </div>
-          );
-        })}
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={agentLink(helpPrompt(o, isLate))}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-transparent dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      aria-label="Get help"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="hidden sm:inline">Help</span>
+                    </Link>
+                    {o.status === "delivered" ? (
+                      <Link
+                        href={agentLink(
+                          o.items.length === 1
+                            ? `I want to return the ${o.items[0].name} from order ${o.id}.`
+                            : `I want to return an item from order ${o.id}.`
+                        )}
+                        className={primary}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Return
+                      </Link>
+                    ) : o.status !== "cancelled" ? (
+                      <Link href={agentLink(`Where is my order ${o.id}?`)} className={primary}>
+                        <PackageCheck className="h-4 w-4" />
+                        Track order
+                      </Link>
+                    ) : null}
+                  </div>
+                </footer>
+              </article>
+            );
+          })}
+        </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
