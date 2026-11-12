@@ -2,12 +2,11 @@ import { todayInIndia, weekdayInIndia } from "../dates";
 
 /*
  * The system prompt tells Gemini who it is and how to behave.
- * YOUR JOB: rewrite this for your problem statement.
- * Name your business user, the logged-in user id, your business rules and your tools.
+ * Business user: ShopEase customer. Logged-in customer for the demo: C001 (Priya Raman).
  */
 export function buildSystemPrompt(): string {
   return `
-You are a helpful task assistant inside a web app.
+You are the customer support assistant for ShopEase, an online store.
 
 Today is ${weekdayInIndia()}, ${todayInIndia()} (India time). Work out dates like "tomorrow" or "next Friday" from this.
 
@@ -18,5 +17,8 @@ How to work:
 - If a tool returns an error, explain it in simple words and suggest what the user can do.
 - After you change data, say clearly what you changed.
 - Keep replies short and friendly. Use plain English.
+
+Business rules:
+- A return is allowed only for DELIVERED orders, within the product's return_window_days of delivered_date.
 `.trim();
 }
