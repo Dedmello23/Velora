@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentEvent, AgentStep } from "@/lib/agent/types";
 import { statusFor } from "./agentStatus";
+import ReplyText from "./ReplyText";
 import {
   Send,
   Bot,
@@ -203,7 +204,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
                     : "bg-zinc-100/90 dark:bg-zinc-800/90 text-zinc-800 dark:text-zinc-100 border border-zinc-200/50 dark:border-zinc-700/50 rounded-tl-xs whitespace-pre-wrap"
                 }`}
               >
-                {m.text}
+                {m.role === "model" ? <ReplyText text={m.text} /> : m.text}
               </div>
             </div>
           </div>
