@@ -93,33 +93,48 @@ Key idea from the guide: a working agent in the chat scores more than a beautifu
 - `orders.status` has no `cancel_requested` value. If the cancellation stretch is built, going straight to `cancelled` fits the current constraint.
 - Re-running the seed drops and recreates the tables, which wipes returns and tickets created while testing.
 
-## 5. What is left
+## 5. Team split (4 members)
+
+Each member has their own file with a checklist and ready-to-paste prompts for their own AI agent. Start at [`team/README.md`](team/README.md) (ownership map, dependencies, timeline).
+
+| # | Role | File | Owns |
+| --- | --- | --- | --- |
+| 1 | Team Lead | [`team/01-team-lead.md`](team/01-team-lead.md) | `AGENTS.md`, `.github/copilot-instructions.md`, `README.md`, GitHub, Vercel, slides, Google Form |
+| 2 | AI / Agent | [`team/02-ai-agent.md`](team/02-ai-agent.md) | `lib/agent/`, Gemini key |
+| 3 | Backend + Database | [`team/03-backend-database.md`](team/03-backend-database.md) | Supabase, `seed/`, `lib/support.ts`, `lib/currentUser.ts`, `app/api/orders`, `app/api/returns` |
+| 4 | Frontend + QA | [`team/04-frontend-qa.md`](team/04-frontend-qa.md) | `app/` pages, `components/`, phone check, test pass, screenshots |
+
+Rule: one owner per file. Need a change in someone else's file? Message the owner.
+
+## 6. What is left
 
 ### From the guide
 
 | Step | Status | Owner |
 | --- | --- | --- |
-| Setup: Supabase project, run `seed/ecommerce_support.sql`, fill `.env.local`, `npm run dev` | To do | You |
-| H1: `AGENTS.md` and `.github/copilot-instructions.md` (under 40 lines) | Not written | Claude can write it |
-| H5: `MAX_ROUNDS` from 5 to 8 in `lib/agent/runAgent.ts` (a return takes about 4 tool calls) | Not done | Claude can do it |
-| H5: test an unclear request ("do the usual") and an off-topic one ("write me a poem") | To do | You |
-| H8: test the rules (see section 6) | To do | You |
-| H9: `npm run build` passes locally. Re-check on Vercel and test the main demo there | Local done, Vercel to do | You |
-| H10: phone check at 360px for `/`, `/orders`, `/returns` | Not reviewed | Claude can do it |
-| H11: README for judges (tool table, tables, 3 demo prompts, live link, team and roles, no keys) | Partly done | Claude drafts, you add team and URL |
-| Deploy on Vercel: import the repo, add the same env vars, deploy | To do | You |
-| Commits: nothing is committed yet; every member needs at least one commit; push before 3:30 | To do | You |
-| H12: 5 slides (title and team, problem, solution and demo with 2 screenshots, how the agent works, results and links) | To do | You (Claude can draft the text) |
-| Submit the Google Form: 5 slides, GitHub link, Vercel link | To do | You |
+| First push to a Public GitHub repo with 3 collaborators | To do | M1 |
+| Setup: Supabase project, run `seed/ecommerce_support.sql`, share keys privately, `.env.local` | To do | M3 |
+| Gemini API key (one for the team) | To do | M2 |
+| H1: `AGENTS.md` and `.github/copilot-instructions.md` (under 40 lines) | Not written | M1 |
+| H5: `MAX_ROUNDS` from 5 to 8 in `lib/agent/runAgent.ts` | Not done | M2 |
+| H5: test an unclear request and an off-topic one | To do | M4 (fix: M2) |
+| H8: test the rules (section 7) | To do | M4 (fix: M2 / M3) |
+| H9: `npm run build` passes locally. Re-check on Vercel and test the main demo there | Local done, Vercel to do | M1 |
+| H10: phone check at 360px for `/`, `/orders`, `/returns` | Not reviewed | M4 |
+| H11: README for judges (tool table, tables, 3 demo prompts, live link, team and roles, no keys) | Partly done | M1 |
+| Deploy on Vercel: import the repo, add the env vars, deploy | To do | M1 |
+| Commits: nothing is committed yet; every member needs at least one commit; push before 3:30 | To do | All |
+| H12: 5 slides, with screenshots | To do | M1 (screenshots: M4) |
+| Submit the Google Form: 5 slides, GitHub link, Vercel link, passcode | To do | M1 |
 
 ### From the problem statement
 - Required parts (5 tools, 3 pages, return rule, demo prompts): built.
-- Confirm the three demo prompts work live. In particular, "the shoes from my last order" must lead the agent to order 1007 rather than the latest order 1012.
-- Stretch (not built):
-  - Order cancellation for orders not yet shipped (a write tool that only allows `placed`).
-  - Admin page for tickets.
+- Confirm the three demo prompts work live (M2 and M4). In particular, "the shoes from my last order" must lead the agent to order 1007 rather than the latest order 1012.
+- Stretch (not built), only before 2:45:
+  - Order cancellation for orders not yet shipped (M3 `checkCancellable`, M2 `cancelOrder` tool).
+  - Admin page for tickets (M3 `/api/admin/tickets`, M4 `/admin` page).
 
-## 6. Test checklist (H8 plus demo)
+## 7. Test checklist (H8 plus demo)
 
 | Test | Try in the chat | Expected |
 | --- | --- | --- |
@@ -136,7 +151,7 @@ Key idea from the guide: a working agent in the chat scores more than a beautifu
 
 After each write, open `/returns` and confirm the new row appears within 5 seconds.
 
-## 7. Questions judges often ask (from the guide)
+## 8. Questions judges often ask (from the guide)
 
 | Question | Answer |
 | --- | --- |
@@ -147,7 +162,7 @@ After each write, open `/returns` and confirm the new row appears within 5 secon
 | Where are your keys? | In `.env.local` and Vercel settings only, never in GitHub |
 | Who wrote this part? | The member who owns it explains it, even if AI helped write it |
 
-## 8. Rules to remember
+## 9. Rules to remember
 
 - Never commit `.env.local`. Never use `SUPABASE_SECRET_KEY` in frontend code (only `lib/` and `app/api/`).
 - Do not change the core stack: Next.js, React, TypeScript, Tailwind, Supabase, Gemini function calling, Zod, Vercel.
